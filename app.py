@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from typing import Any
+from urllib.parse import urlsplit
 
 import requests
 from flask import Flask, abort, jsonify, render_template, request
@@ -72,6 +73,17 @@ def api_response(method: str, path: str, *, params=None, payload=None):
         status = int(error.get("status", 502))
         return jsonify({"ok": False, "error": error.get("message", "API error")}), status
     return jsonify({"ok": True, "result": result})
+
+
+@app.before_request
+def restrict_host():
+    host = (urlsplit("//" + request.host).hostname or "").lower()
+    allowed_hosts = {"127.0.0.1", "localhost", "::1"}
+    configured_host = os.environ.get("WEB_HOST", "127.0.0.1").strip().lower()
+    if configured_host not in {"0.0.0.0", "::"}:
+        allowed_hosts.add(configured_host)
+    if host not in allowed_hosts:
+        abort(403)
 
 
 @app.before_request
