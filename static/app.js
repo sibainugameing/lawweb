@@ -308,6 +308,7 @@ async function openRevision(kind, uuid, rev) {
   } catch (error) { renderError(error); }
 }
 async function showSearch(query) {
+  state.view = "search";
   state.query = query;
   setHeader("search");
   root.innerHTML = '<div class="loading-state"><span class="loader"></span><p>検索しています…</p></div>';
@@ -394,6 +395,8 @@ async function handleSubmit(event) {
       closeModal(); showToast("ルールを作成しました。"); await loadRules();
     } else if (form.id === "edit-rule-form") {
       const payload = formObject(form);
+      payload.category = document.getElementById("edit-rule-category").value;
+      payload.body = document.getElementById("edit-rule-body").value;
       payload.if_version = form.dataset.version;
       await api("rules/" + encodeURIComponent(form.dataset.uuid), {method:"PUT", body:payload});
       showToast("ルールを更新しました。"); await openRule(form.dataset.uuid);
