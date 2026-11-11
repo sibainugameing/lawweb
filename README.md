@@ -26,6 +26,8 @@ LawGitのHTTP Integration APIを利用する、Python + Flask製のローカルW
 
     sh run.sh
 
+初回の依存パッケージ取得時はpipがPyPIへ接続します。以降はFlaskとRequestsのimportを確認し、インストール済みならpipを実行しません。フロントエンドに外部CDNや解析サービスは使用していません。
+
 このスクリプトが以下をまとめて行います。
 
 1. LawGit APIが起動済みか確認
