@@ -94,8 +94,12 @@ if [ ! -x "$VENV_DIR/bin/python" ]; then
   "$PYTHON" -m venv "$VENV_DIR"
 fi
 
-echo "[lawweb] Python依存関係を確認します…"
-"$VENV_DIR/bin/python" -m pip install --disable-pip-version-check -r requirements.txt
+if ! "$VENV_DIR/bin/python" -c 'import flask, requests' >/dev/null 2>&1; then
+  echo "[lawweb] Python依存関係をインストールします…"
+  "$VENV_DIR/bin/python" -m pip install --disable-pip-version-check -r requirements.txt
+else
+  echo "[lawweb] Python依存関係はインストール済みです"
+fi
 
 echo "[lawweb] Web UI: http://${WEB_HOST}:${WEB_PORT}"
 echo "[lawweb] 停止するには Ctrl+C を押してください。"
