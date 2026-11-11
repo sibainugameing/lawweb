@@ -379,6 +379,14 @@ function formObject(form) {
   });
   return data;
 }
+function notifySave(message, result) {
+  const commitError = result && result.commit && result.commit.error;
+  if (commitError) {
+    showToast(message + "。データは保存されましたが、Gitコミットに失敗しました: " + commitError, true);
+  } else {
+    showToast(message);
+  }
+}
 async function handleSubmit(event) {
   const form = event.target;
   if (!(form instanceof HTMLFormElement)) return;
@@ -388,18 +396,18 @@ async function handleSubmit(event) {
   if (submit) { submit.disabled = true; submit.textContent = "処理中…"; }
   try {
     if (form.id === "create-law-form") {
-      await api("laws", {method:"POST", body:formObject(form)});
-      closeModal(); showToast("法令を登録しました。"); await loadLaws();
+      const result = await api("laws", {method:"POST", body:formObject(form)});
+      closeModal(); notifySave("法令を登録しました", result); await loadLaws();
     } else if (form.id === "create-rule-form") {
-      await api("rules", {method:"POST", body:formObject(form)});
-      closeModal(); showToast("ルールを作成しました。"); await loadRules();
+      const result = await api("rules", {method:"POST", body:formObject(form)});
+      closeModal(); notifySave("ルールを作成しました", result); await loadRules();
     } else if (form.id === "edit-rule-form") {
       const payload = formObject(form);
       payload.category = document.getElementById("edit-rule-category").value;
       payload.body = document.getElementById("edit-rule-body").value;
       payload.if_version = form.dataset.version;
-      await api("rules/" + encodeURIComponent(form.dataset.uuid), {method:"PUT", body:payload});
-      showToast("ルールを更新しました。"); await openRule(form.dataset.uuid);
+      const result = await api("rules/" + encodeURIComponent(form.dataset.uuid), {method:"PUT", body:payload});
+      notifySave("ルールを更新しました", result); await openRule(form.dataset.uuid);
     } else if (form.id === "commit-form") {
       const payload = formObject(form);
       await api("git/commit", {method:"POST", body:payload});
@@ -416,8 +424,8 @@ async function deleteRule(uuid) {
   if (!window.confirm("このルールを削除します。Git履歴はLawGitに残ります。続けますか？")) return;
   try {
     const version = state.selected.data.version || "";
-    await api("rules/" + encodeURIComponent(uuid) + "?if_version=" + encodeURIComponent(version), {method:"DELETE"});
-    showToast("ルールを削除しました。");
+    const result = await api("rules/" + encodeURIComponent(uuid) + "?if_version=" + encodeURIComponent(version), {method:"DELETE"});
+    notifySave("ルールを削除しました", result);
     await loadRules();
   } catch (error) {
     if (error.status === 409) showToast("他のアプリで更新されています。再取得してから削除してください。", true);
