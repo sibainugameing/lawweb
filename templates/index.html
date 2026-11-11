@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#172638">
+  <title>LawWeb — LawGit Workspace</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+  <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <a class="brand" href="/" aria-label="LawWeb ホーム">
+        <span class="brand-mark">L<span>.</span></span>
+        <span class="brand-copy"><strong>LAW<span>WEB</span></strong><small>LAWGIT WORKSPACE</small></span>
+      </a>
+
+      <div class="workspace-label">WORKSPACE</div>
+      <nav class="main-nav" aria-label="メインメニュー">
+        <button class="nav-item active" data-view="overview"><span class="nav-icon">◫</span><span>概要</span><kbd>01</kbd></button>
+        <button class="nav-item" data-view="laws"><span class="nav-icon">▤</span><span>法令</span><kbd>02</kbd></button>
+        <button class="nav-item" data-view="rules"><span class="nav-icon">≡</span><span>ルール</span><kbd>03</kbd></button>
+        <button class="nav-item" data-view="activity"><span class="nav-icon">↗</span><span>変更履歴</span><kbd>04</kbd></button>
+        <button class="nav-item" data-view="integrity"><span class="nav-icon">◇</span><span>検証・Git</span><kbd>05</kbd></button>
+      </nav>
+
+      <div class="sidebar-bottom">
+        <div class="connection-card">
+          <div class="connection-head"><span class="status-dot" id="sidebar-status-dot"></span><span id="sidebar-status">接続を確認中</span></div>
+          <p id="sidebar-repo">LawGit API</p>
+          <div class="connection-foot"><span>LOCAL SERVICE</span><span class="pulse"></span></div>
+        </div>
+        <div class="sidebar-footer"><span>LAW<span>WEB</span> <b>v0.1</b></span><span>NO ACCOUNT</span></div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="page-heading">
+          <div class="breadcrumb"><span>LAWGit</span><i>/</i><span id="breadcrumb-current">OVERVIEW</span></div>
+          <h1 id="page-title">概要</h1>
+        </div>
+        <div class="topbar-actions">
+          <form class="global-search" id="search-form" role="search">
+            <span class="search-symbol">⌕</span>
+            <input id="global-search" type="search" placeholder="法令・ルールを検索…" autocomplete="off" aria-label="法令・ルールを検索">
+            <kbd>↵</kbd>
+          </form>
+          <button class="icon-button" id="refresh-button" title="再読み込み" aria-label="再読み込み">↻</button>
+          <button class="button button-primary" id="create-button"><span>＋</span> 新規作成</button>
+        </div>
+      </header>
+
+      <div class="content" id="view-root" aria-live="polite">
+        <div class="loading-state"><span class="loader"></span><p>LawGitに接続しています…</p></div>
+      </div>
+      <footer class="main-footer"><span>LAW DOCUMENT MANAGEMENT</span><span>POWERED BY LAWGIT API</span></footer>
+    </main>
+  </div>
+
+  <div id="modal-root"></div>
+  <div id="toast-root" class="toast-root" aria-live="polite" aria-atomic="true"></div>
+</body>
+</html>
