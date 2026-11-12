@@ -1,32 +1,47 @@
 #!/bin/sh
 set -eu
+umask 077
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 cd "$ROOT"
 
-if [ -f ".env" ]; then
-  set -a
-  # .env is a local shell-style configuration file. Keep it private and do not download it.
-  . ./.env
-  set +a
-else
+if [ ! -f ".env" ]; then
   cp .env.example .env
+  chmod 600 .env
   echo "[lawweb] .env を作成しました。LAWGIT_REPOを設定してから再実行してください。"
   exit 1
 fi
+
+chmod 600 .env
+set -a
+. ./.env
+set +a
 
 PYTHON=${PYTHON:-python3}
 LAWGIT_BIN=${LAWGIT_BIN:-lawgit}
 LAWGIT_API_HOST=${LAWGIT_API_HOST:-127.0.0.1}
 LAWGIT_API_PORT=${LAWGIT_API_PORT:-8787}
-LAWGIT_API_URL=${LAWGIT_API_URL:-http://${LAWGIT_API_HOST}:${LAWGIT_API_PORT}}
+LAWGIT_API_URL="http://127.0.0.1:$LAWGIT_API_PORT"
 LAWGIT_TOKEN=${LAWGIT_TOKEN:-}
-LAWGIT_COMMIT=${LAWGIT_COMMIT:-0}
+LAWGIT_TIMEOUT=${LAWGIT_TIMEOUT:-10}
 WEB_HOST=${WEB_HOST:-127.0.0.1}
 WEB_PORT=${WEB_PORT:-5000}
 VENV_DIR="$ROOT/.venv"
 LAW_PID=""
 LAW_LOG="${TMPDIR:-/tmp}/lawweb-lawgit-$$.log"
+
+if [ "$WEB_HOST" != "127.0.0.1" ]; then
+  echo "[lawweb] 安全のためWEB_HOSTは127.0.0.1固定です。" >&2
+  exit 1
+fi
+if [ "$LAWGIT_API_HOST" != "127.0.0.1" ]; then
+  echo "[lawweb] 安全のためLAWGIT_API_HOSTは127.0.0.1固定です。" >&2
+  exit 1
+fi
+if ! command -v curl >/dev/null 2>&1; then
+  echo "[lawweb] curlが必要です。" >&2
+  exit 1
+fi
 
 api_is_ready() {
   if [ -n "$LAWGIT_TOKEN" ]; then
@@ -47,30 +62,19 @@ trap cleanup EXIT INT TERM
 if api_is_ready; then
   echo "[lawweb] 既存のLawGit APIを使用します: $LAWGIT_API_URL"
 else
-  if [ -z "${LAWGIT_REPO:-}" ]; then
-    echo "[lawweb] エラー: .env の LAWGIT_REPO にLawGitデータリポジトリのパスを設定してください。" >&2
-    echo "[lawweb] laws/ と rules/ を含むディレクトリを指定します。" >&2
-    exit 1
-  fi
-  if [ ! -d "$LAWGIT_REPO" ]; then
-    echo "[lawweb] エラー: LAWGIT_REPO が存在しません: $LAWGIT_REPO" >&2
+  if [ -z "${LAWGIT_REPO:-}" ] || [ ! -d "$LAWGIT_REPO" ]; then
+    echo "[lawweb] .envのLAWGIT_REPOに、laws/とrules/を含むデータリポジトリのパスを設定してください。" >&2
     exit 1
   fi
   if ! command -v "$LAWGIT_BIN" >/dev/null 2>&1 && [ ! -x "$LAWGIT_BIN" ]; then
-    echo "[lawweb] エラー: lawgit コマンドが見つかりません: $LAWGIT_BIN" >&2
-    echo "[lawweb] cargo install --path <LawGitソースディレクトリ> などでCLIを用意してください。" >&2
+    echo "[lawweb] lawgitコマンドが見つかりません: $LAWGIT_BIN" >&2
     exit 1
   fi
 
   set --
-  if [ -n "$LAWGIT_TOKEN" ]; then
-    set -- "$@" --token "$LAWGIT_TOKEN"
-  fi
-  if [ "$LAWGIT_COMMIT" = "1" ]; then
-    set -- "$@" --commit
-  fi
+  if [ -n "$LAWGIT_TOKEN" ]; then set -- "$@" --token "$LAWGIT_TOKEN"; fi
   echo "[lawweb] LawGit APIを起動します…"
-  "$LAWGIT_BIN" --repo "$LAWGIT_REPO" serve --host "$LAWGIT_API_HOST" --port "$LAWGIT_API_PORT" "$@" >"$LAW_LOG" 2>&1 &
+  "$LAWGIT_BIN" --repo "$LAWGIT_REPO" serve --host 127.0.0.1 --port "$LAWGIT_API_PORT" "$@" >"$LAW_LOG" 2>&1 &
   LAW_PID=$!
 
   ready=0
@@ -86,21 +90,24 @@ else
     cat "$LAW_LOG" >&2 2>/dev/null || true
     exit 1
   fi
-  echo "[lawweb] LawGit API起動完了"
 fi
 
 if [ ! -x "$VENV_DIR/bin/python" ]; then
-  echo "[lawweb] Python仮想環境を作成します…"
   "$PYTHON" -m venv "$VENV_DIR"
 fi
 
-if ! "$VENV_DIR/bin/python" -c 'import flask, requests' >/dev/null 2>&1; then
+if ! "$VENV_DIR/bin/python" -c 'import flask, requests, argon2, waitress' >/dev/null 2>&1; then
   echo "[lawweb] Python依存関係をインストールします…"
   "$VENV_DIR/bin/python" -m pip install --disable-pip-version-check -r requirements.txt
-else
-  echo "[lawweb] Python依存関係はインストール済みです"
 fi
 
-echo "[lawweb] Web UI: http://${WEB_HOST}:${WEB_PORT}"
+export LAWGIT_API_URL LAWGIT_TOKEN LAWGIT_TIMEOUT WEB_HOST WEB_PORT
+USER_COUNT=$("$VENV_DIR/bin/python" -c 'import app; print(app.user_count())')
+if [ "$USER_COUNT" = "0" ]; then
+  echo "[lawweb] 最初の管理アカウントを作成します（Webからの公開登録はありません）。"
+  "$VENV_DIR/bin/flask" --app app create-user
+fi
+
+echo "[lawweb] LawWeb: http://127.0.0.1:$WEB_PORT"
 echo "[lawweb] 停止するには Ctrl+C を押してください。"
-"$VENV_DIR/bin/python" -m flask --app app run --host "$WEB_HOST" --port "$WEB_PORT" --no-debugger --no-reload
+"$VENV_DIR/bin/waitress-serve" --host=127.0.0.1 --port="$WEB_PORT" --threads=4 --channel-timeout=30 app:app
