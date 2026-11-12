@@ -98,18 +98,14 @@ def init_database() -> None:
                     blocked_until INTEGER NOT NULL DEFAULT 0
                 );
             """)
-        if DB_PATH.exists():
-            os.chmod(DB_PATH, 0o600)
-        now = int(time.time())
-        db = connect_db()
-        try:
+            now = int(time.time())
             db.execute(
                 "DELETE FROM auth_sessions WHERE expires_at <= ? OR last_seen_at <= ?",
                 (now, now - IDLE_MINUTES * 60),
             )
             db.commit()
-        finally:
-            db.close()
+        if DB_PATH.exists():
+            os.chmod(DB_PATH, 0o600)
     finally:
         os.umask(old_umask)
 
