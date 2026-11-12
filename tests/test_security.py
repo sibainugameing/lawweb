@@ -63,6 +63,23 @@ class LawWebSecurityTests(unittest.TestCase):
         self.assertEqual(self.client.post("/api/rules").status_code, 405)
         self.assertEqual(self.client.post("/api/git/commit").status_code, 405)
 
+
+    def test_logout_revokes_the_server_side_session(self):
+        response = self.client.get("/login")
+        csrf = re.search(r'name="csrf_token" value="([^"]+)"', response.get_data(as_text=True)).group(1)
+        self.client.post("/login", data={
+            "csrf_token": csrf,
+            "username": "reader01",
+            "password": "correct horse battery staple 2026",
+        }, headers={"Origin": "http://localhost"})
+        with self.client.session_transaction() as browser_session:
+            logout_csrf = browser_session["_csrf"]
+
+        logged_out = self.client.post("/logout", data={"csrf_token": logout_csrf},
+                                      headers={"Origin": "http://localhost"})
+        self.assertEqual(logged_out.status_code, 302)
+        self.assertEqual(self.client.get("/").status_code, 302)
+
     def test_security_headers_are_present(self):
         response = self.client.get("/login")
         self.assertEqual(response.headers.get("X-Frame-Options"), "DENY")
