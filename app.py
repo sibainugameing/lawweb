@@ -24,7 +24,7 @@ ROOT = Path(__file__).resolve().parent
 INSTANCE_DIR = ROOT / "instance"
 INSTANCE_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
 os.chmod(INSTANCE_DIR, 0o700)
-DB_PATH = Path(os.environ.get("LAWWEB_DB_PATH", str(INSTANCE_DIR / "lawweb.sqlite3"))).expanduser()
+DB_PATH = INSTANCE_DIR / "lawweb.sqlite3"
 DB_PATH.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
 os.chmod(DB_PATH.parent, 0o700)
 
