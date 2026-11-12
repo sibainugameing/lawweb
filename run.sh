@@ -104,7 +104,7 @@ fi
 export LAWGIT_API_URL LAWGIT_TOKEN LAWGIT_TIMEOUT WEB_HOST WEB_PORT
 USER_COUNT=$("$VENV_DIR/bin/python" -c 'import app; print(app.user_count())')
 if [ "$USER_COUNT" = "0" ]; then
-  echo "[lawweb] 最初の管理アカウントを作成します（Webからの公開登録はありません）。"
+  echo "[lawweb] 初回アカウントを作成します（Webからの公開登録はありません）。"
   "$VENV_DIR/bin/flask" --app app create-user
 fi
 
