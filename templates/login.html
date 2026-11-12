@@ -17,7 +17,7 @@
       </a>
       <p class="eyebrow">PRIVATE LEGAL DOCUMENT LIBRARY</p>
       <h1>ログイン</h1>
-      <p class="auth-description">LawWebの閲覧にはアカウント認証が必要です。アカウントは管理者が発行します。</p>
+      <p class="auth-description">LawWebの閲覧にはアカウント認証が必要です。アカウントは運用者がターミナルから発行します。</p>
       {% if error %}<div class="auth-alert" role="alert">{{ error }}</div>{% endif %}
       {% if setup_message %}<div class="auth-notice">{{ setup_message }}</div>{% endif %}
       <form method="post" action="{{ url_for('login_post') }}" class="auth-form" autocomplete="on">
