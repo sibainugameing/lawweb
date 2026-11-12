@@ -100,6 +100,13 @@ class LawWebSecurityTests(unittest.TestCase):
                 lawweb.record_failure(keys[1:], now)
             self.assertTrue(lawweb.is_limited(keys, now))
 
+    def test_non_loopback_client_is_rejected(self):
+        response = self.client.get(
+            "/login",
+            environ_base={"REMOTE_ADDR": "192.0.2.10"},
+        )
+        self.assertEqual(response.status_code, 403)
+
     def test_security_headers_are_present(self):
         response = self.client.get("/login")
         self.assertEqual(response.headers.get("X-Frame-Options"), "DENY")
