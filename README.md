@@ -1,70 +1,88 @@
 # LawWeb
 
-LawGitのHTTP Integration APIを利用する、Python + Flask製のローカルWeb UIです。アカウント機能はありません。
+LawGitのHTTP Integration APIを利用する、Python + Flask製のログイン必須・閲覧専用Webアプリです。
 
-## 主な機能
+## 機能
 
-- ダッシュボード：法令数・ルール数・カテゴリ・最近のコミット・API接続状態
-- 法令：一覧、種別による絞り込み、詳細XMLの閲覧、履歴・過去版の参照、新規登録
-- ルール：一覧、検索、Markdown本文の作成・編集・削除、履歴・過去版の参照
-- 横断検索：LawGitのsearch APIで法令とルールを検索
-- Git：コミット履歴、変更追従API、ワークツリー状態、検証、一括コミット
-- 競合検出：ルール更新・削除で取得時のversionをif_versionとして送信
-- 認証トークンはFlask側だけで保持し、ブラウザへは渡しません
+- ダッシュボード：法令数、ルール数、カテゴリ、接続状態
+- 法令：一覧、種別絞り込み、詳細XML、識別子、変更履歴、過去版
+- ルール：一覧、カテゴリ検索、Markdown本文、変更履歴、過去版
+- 横断検索：LawGitのsearch API
+- Git：コミット履歴、変更追従情報、ワークツリー状態、検証レポート
+- 書き込みAPI・作成画面・編集画面・削除画面はありません
 
 ## 起動
 
 必要なもの：Python 3.10以降、LawGit CLI、curl。
 
-初回はプロジェクト直下で次を実行します。
-
     sh run.sh
 
-初回実行時に .env が生成されるので、LAWGIT_REPOをLawGitのデータリポジトリの絶対パスに設定してください。対象ディレクトリにはLawGitが管理する laws/ と rules/ が必要です。
+初回は .env が作成されます。LAWGIT_REPOをLawGitのデータリポジトリ（laws/ と rules/ を含む場所）の絶対パスに設定し、再実行してください。
 
-設定後、再度実行します。
+初回の依存パッケージ取得時はPyPIへ接続します。その後は必要パッケージのimportを検査し、すでにインストール済みならpipを実行しません。ブラウザ側に外部CDN・解析サービスはありません。
 
-    sh run.sh
+最初の起動では、ターミナル上で管理アカウントの作成を求められます。ユーザー名と14文字以上のパスワードを入力してください。Web上に登録フォームはありません。
 
-初回の依存パッケージ取得時はpipがPyPIへ接続します。以降はFlaskとRequestsのimportを確認し、インストール済みならpipを実行しません。フロントエンドに外部CDNや解析サービスは使用していません。
+起動後に http://127.0.0.1:5000 を開きます。停止は Ctrl+C です。このスクリプトが起動したLawGit APIも一緒に停止します。既に起動していたAPIは停止しません。
 
-このスクリプトが以下をまとめて行います。
+## アカウント管理
 
-1. LawGit APIが起動済みか確認
-2. 起動していなければ lawgit --repo DIR serve をバックグラウンド起動
-3. Python仮想環境を作成
-4. requirements.txtをインストール
-5. Flask Web UIを起動
+アカウント作成（Web公開登録なし）：
 
-スクリプトが起動したLawGit APIは、Web UIを終了するときに一緒に停止します。すでに起動していたAPIは停止しません。
+    .venv/bin/flask --app app create-user
 
-ブラウザで http://127.0.0.1:5000 を開きます。
+パスワード変更（該当ユーザーの全セッションを失効）：
 
-## 設定項目
+    .venv/bin/flask --app app change-password --username USERNAME
+
+全セッションを強制ログアウト：
+
+    .venv/bin/flask --app app revoke-sessions
+
+特定ユーザーの全セッションを強制ログアウト：
+
+    .venv/bin/flask --app app revoke-sessions --username USERNAME
+
+アカウント・パスワードハッシュ・セッション情報は instance/lawweb.sqlite3 に保存されます。署名鍵は instance/secret.key に自動生成されます。どちらもGitへ登録しないでください。
+
+## 設定
 
 | 変数 | 既定値 | 説明 |
 |---|---|---|
 | LAWGIT_REPO | 空 | laws/ と rules/ を含むデータリポジトリ |
-| LAWGIT_BIN | lawgit | LawGit CLIのコマンドまたは実行ファイル |
-| LAWGIT_API_HOST | 127.0.0.1 | LawGit APIの待受アドレス |
-| LAWGIT_API_PORT | 8787 | LawGit APIのポート |
-| LAWGIT_API_URL | http://127.0.0.1:8787 | Flaskから接続するAPIのベースURL |
-| LAWGIT_TOKEN | 空 | LawGit APIのトークン。ブラウザには公開されない |
-| LAWGIT_COMMIT | 0 | 1にするとLawGit serveを--commit付きで起動 |
-| WEB_HOST | 127.0.0.1 | Flaskの待受アドレス |
-| WEB_PORT | 5000 | Flaskのポート |
+| LAWGIT_BIN | lawgit | LawGit CLIコマンド |
+| LAWGIT_API_HOST | 127.0.0.1 | 固定。外部待受不可 |
+| LAWGIT_API_PORT | 8787 | LawGit APIポート |
+| LAWGIT_TOKEN | 空 | LawGit APIトークン |
+| LAWGIT_TIMEOUT | 10 | API接続タイムアウト |
+| WEB_HOST | 127.0.0.1 | 固定。外部待受不可 |
+| WEB_PORT | 5000 | Web UIポート |
+| LAWWEB_SECRET_KEY | 空 | 任意の署名鍵。空欄ならinstance/secret.keyを生成 |
+| LAWWEB_SESSION_HOURS | 8 | セッション絶対有効時間（最大24時間） |
+| LAWWEB_IDLE_MINUTES | 30 | 無操作セッション期限（5〜240分） |
 
-## セキュリティ上の注意
+## セキュリティ設計
 
-- アカウント機能・ユーザー認証は実装していません。
-- 既定のWEB_HOSTは127.0.0.1です。LANやインターネットへ公開しないでください。
-- WEB_HOSTを0.0.0.0に変更すると、ネットワーク上の他端末から操作可能になります。認証・TLS・アクセス制御を追加するまでは変更しないでください。
-- LawGit APIのトークンはFlaskプロセス内でのみ使用します。HTMLやJavaScriptへ埋め込みません。
-- .envには秘密情報を置けます。Gitにコミットしないでください（.gitignoreで除外）。
-- 既定では自動コミットを有効にしません。必要な場合だけLAWGIT_COMMIT=1を指定するか、LawGit側で設定してください。
+- すべての画面とデータAPIにログインを要求します。
+- 公開登録はありません。ユーザー追加はローカルCLI限定です。
+- パスワードはArgon2idでハッシュ化します。平文パスワードは保存しません。
+- セッションIDは暗号学的乱数で発行し、DBにはSHA-256ダイジェストだけを保存します。
+- セッションは8時間で絶対失効、30分無操作でも失効します。ログアウト・パスワード変更時にはサーバー側セッションを失効させます。
+- アカウント単位・接続元単位のログイン試行制限を設けています。
+- ログイン・ログアウトにはCSRFトークンとOrigin検査を適用します。
+- CookieはHttpOnly、SameSite=Lax。データ画面はno-storeです。
+- CSP、X-Frame-Options、nosniff、Referrer-Policy、Permissions-Policyを設定しています。
+- Hostと接続元をループバックに制限し、FlaskではなくWaitressで待ち受けます。
+- FlaskからLawGit APIへの通信先もループバックに固定し、トークンはサーバー内でのみ使用します。
+- Flask側のルートはGET/HEADに限定し、書き込みHTTPメソッドを拒否します。LawGitへの中継もGETだけです。
+- DB・署名鍵・.envはローカル権限を制限します。
 
-## API設計
+## セキュリティ上の限界
 
-ブラウザは同一オリジンの /api/* にアクセスし、FlaskがLawGitの /api/v1/* へ中継します。LawGitのレスポンス形式（ok/result または ok/error）を検査し、HTTPステータスを維持して返します。
+「完璧なセキュリティ」は保証できません。この構成は単一マシン上のローカル利用専用です。LAN・インターネットへ公開する構成ではありません。ローカルPCに侵入した別ユーザーやマルウェア、OS管理者権限を持つ攻撃者からは保護できません。LawGit本体、OS、Python依存パッケージの脆弱性も別途更新が必要です。
 
-LawGit APIに存在しない法令本文の更新・削除UIは追加していません。法令の作成フォームはlaw.createが受け付けるメタデータのみを扱います。ルールの作成・更新・削除はrule APIの仕様に従います。
+LANやインターネットへの公開、複数端末からのアクセス、外部リバースプロキシはこのビルドでは意図的に無効化しています。公開運用が必要になった場合は、TLS終端、プロキシ境界、バックアップ、監査ログ、アカウントロック解除手順を含めて別途設計してください。
+
+## API連携
+
+ブラウザは同一オリジンの /api/* を呼び、FlaskがLawGit /api/v1/* の読み取りAPIだけを中継します。LawGitのデータは変更しません。
