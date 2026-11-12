@@ -137,6 +137,7 @@ function renderLaws() {
   q.addEventListener("input",apply); t.addEventListener("change",apply);
 }
 async function openLaw(uuid) {
+  state.view="laws";
   root.innerHTML='<div class="loading-state"><span class="loader"></span><p>法令の詳細を読み込んでいます…</p></div>';
   try {const data=await api("laws/"+encodeURIComponent(uuid));state.selected={kind:"law",uuid,data};renderLaw(data);}
   catch(e){renderError(e);}
@@ -167,6 +168,7 @@ function renderRules() {
   filter.addEventListener("input",()=>{const q=filter.value.trim().toLowerCase();document.querySelectorAll("#rule-table tr").forEach(row=>row.hidden=!row.dataset.q.includes(q));});
 }
 async function openRule(uuid) {
+  state.view="rules";
   root.innerHTML='<div class="loading-state"><span class="loader"></span><p>ルールを読み込んでいます…</p></div>';
   try {const data=await api("rules/"+encodeURIComponent(uuid));state.selected={kind:"rule",uuid,data};renderRule(data);}
   catch(e){renderError(e);}
@@ -180,6 +182,7 @@ function renderRule(rule) {
     '<section class="panel rule-body-panel"><div class="code-label"><span>MARKDOWN BODY</span><span>READ ONLY</span></div><pre class="code-block">'+esc(rule.body || "本文はありません。")+'</pre></section>';
 }
 async function openHistory(kind,uuid) {
+  state.view=kind==="law"?"laws":"rules";
   root.innerHTML='<div class="loading-state"><span class="loader"></span><p>変更履歴を取得しています…</p></div>';
   try {
     const data=await api(kind+"s/"+encodeURIComponent(uuid)+"/history?limit=100");
@@ -194,6 +197,7 @@ async function openHistory(kind,uuid) {
   } catch(e){renderError(e);}
 }
 async function openRevision(kind,uuid,rev) {
+  state.view=kind==="law"?"laws":"rules";
   root.innerHTML='<div class="loading-state"><span class="loader"></span><p>過去の内容を取得しています…</p></div>';
   try {
     const data=await api(kind+"s/"+encodeURIComponent(uuid)+"/revisions/"+encodeURIComponent(rev));
