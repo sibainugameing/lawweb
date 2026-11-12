@@ -56,7 +56,7 @@ def load_secret_key() -> str:
                 stream.write(value + "\n")
         except FileExistsError:
             value = path.read_text(encoding="ascii").strip()
-        os.chmod(path, 0o600)
+    os.chmod(path, 0o600)
     if len(value) < 64:
         raise RuntimeError("署名鍵ファイルが不正です。")
     return value
@@ -592,6 +592,10 @@ def forbidden(_error):
 def not_found(_error):
     if request.path.startswith("/api/"):
         return jsonify({"ok": False, "error": "LawWeb API endpoint not found"}), 404
+    if request.path.startswith("/static/"):
+        return "Not found", 404
+    if getattr(g, "user", None) is None:
+        return redirect(url_for("login"))
     return render_template("index.html"), 404
 
 
