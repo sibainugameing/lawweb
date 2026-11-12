@@ -191,6 +191,7 @@ def is_limited(keys: list[tuple[str, int]], now: int) -> bool:
 def record_failure(keys: list[tuple[str, int]], now: int) -> None:
     with closing(connect_db()) as db:
         db.execute("BEGIN IMMEDIATE")
+        db.execute("DELETE FROM login_limits WHERE window_started_at < ?", (now - 86400,))
         for key, limit in keys:
             row = db.execute(
                 "SELECT window_started_at,failures FROM login_limits WHERE key_hash=?", (key,)
@@ -364,6 +365,8 @@ def login():
 
 @app.post("/login")
 def login_post():
+    if authenticated_user():
+        return redirect(url_for("index"))
     raw_name = request.form.get("username", "")
     password = request.form.get("password", "")
     try:
