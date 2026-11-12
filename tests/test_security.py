@@ -80,6 +80,26 @@ class LawWebSecurityTests(unittest.TestCase):
         self.assertEqual(logged_out.status_code, 302)
         self.assertEqual(self.client.get("/").status_code, 302)
 
+    def test_account_login_rate_limit_is_enforced(self):
+        now = int(__import__("time").time())
+        with lawweb.app.test_request_context(
+            "/login", environ_base={"REMOTE_ADDR": "127.0.0.1"}
+        ):
+            keys = lawweb.login_keys("reader01")
+            for _ in range(lawweb.ACCOUNT_LIMIT):
+                lawweb.record_failure(keys[:1], now)
+            self.assertTrue(lawweb.is_limited(keys, now))
+
+    def test_ip_login_rate_limit_is_enforced(self):
+        now = int(__import__("time").time())
+        with lawweb.app.test_request_context(
+            "/login", environ_base={"REMOTE_ADDR": "127.0.0.1"}
+        ):
+            keys = lawweb.login_keys("anotheruser")
+            for _ in range(lawweb.IP_LIMIT):
+                lawweb.record_failure(keys[1:], now)
+            self.assertTrue(lawweb.is_limited(keys, now))
+
     def test_security_headers_are_present(self):
         response = self.client.get("/login")
         self.assertEqual(response.headers.get("X-Frame-Options"), "DENY")
