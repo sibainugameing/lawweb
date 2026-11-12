@@ -100,6 +100,16 @@ def init_database() -> None:
             """)
         if DB_PATH.exists():
             os.chmod(DB_PATH, 0o600)
+        now = int(time.time())
+        db = connect_db()
+        try:
+            db.execute(
+                "DELETE FROM auth_sessions WHERE expires_at <= ? OR last_seen_at <= ?",
+                (now, now - IDLE_MINUTES * 60),
+            )
+            db.commit()
+        finally:
+            db.close()
     finally:
         os.umask(old_umask)
 
@@ -372,7 +382,7 @@ def login_post():
     try:
         username = normalize_username(raw_name)
     except ValueError:
-        username = "invalid-user"
+        username = "invalid-" + secrets.token_hex(12)
 
     now = int(time.time())
     keys = login_keys(username)
@@ -386,14 +396,16 @@ def login_post():
             "SELECT id,username,password_hash,disabled FROM users WHERE username=?", (username,)
         ).fetchone()
 
-    stored_hash = str(user["password_hash"]) if user else DUMMY_HASH
+    too_long = len(password) > MAX_PASSWORD
+    stored_hash = str(user["password_hash"]) if user and not too_long else DUMMY_HASH
+    verify_value = password[:MAX_PASSWORD]
     valid = False
     try:
-        valid = PASSWORDS.verify(stored_hash, password)
+        valid = PASSWORDS.verify(stored_hash, verify_value)
     except (VerifyMismatchError, VerificationError, InvalidHashError):
         valid = False
 
-    if user is None or int(user["disabled"]) != 0 or not valid or len(password) > MAX_PASSWORD:
+    if user is None or int(user["disabled"]) != 0 or not valid or too_long:
         record_failure(keys, now)
         return render_template("login.html",
             error="ユーザー名またはパスワードが正しくありません。",
@@ -543,6 +555,8 @@ def search():
     query = request.args.get("q", "").strip()
     if not query:
         return jsonify({"ok": False, "error": "検索語を入力してください。"}), 400
+    if len(query) > 300:
+        return jsonify({"ok": False, "error": "検索語は300文字以内にしてください。"}), 400
     return api_response("search", {"q": query, "limit": request.args.get("limit", "50")})
 
 
