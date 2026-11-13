@@ -553,7 +553,7 @@ def public_overview():
         "connected": True,
         "ping": {"name": ping.get("name"), "version": ping.get("version")},
         "laws": public_laws,
-        "categories": categories or {"laws": [], "rules": []},
+        "categories": {"laws": (categories or {}).get("laws", [])},
         "errors": {"categories": categories_error["message"]} if categories_error else {},
     }})
 
@@ -743,6 +743,15 @@ def revoke_sessions_command(username: str):
             db.execute("DELETE FROM auth_sessions")
         db.commit()
     click.echo("セッションを失効させました。")
+
+
+@app.cli.command("reset-login-limits")
+def reset_login_limits_command():
+    """Clear account and address login throttles after a local operator verifies the issue."""
+    with closing(connect_db()) as db:
+        db.execute("DELETE FROM login_limits")
+        db.commit()
+    click.echo("ログイン試行制限をすべて解除しました。")
 
 
 if os.environ.get("WEB_HOST", "127.0.0.1") != "127.0.0.1":
