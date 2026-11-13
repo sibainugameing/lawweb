@@ -77,7 +77,7 @@ class LawWebSecurityTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 403)
         self.assertIn("新規登録", response.get_data(as_text=True))
-        self.assertIn("入力内容は送信されていません", response.get_data(as_text=True))
+        self.assertIn("ホスト名またはポートが一致しません", response.get_data(as_text=True))
 
     def test_account_password_can_be_changed_from_web(self):
         self.assertEqual(self.login().status_code, 302)
@@ -304,6 +304,24 @@ class LawWebSecurityTests(unittest.TestCase):
             self.assertTrue(lawweb.same_local_origin(
                 "http://localhost:5000/register?source=home", allow_path=True
             ))
+
+    def test_registration_html_uses_server_side_username_validation(self):
+        response = self.client.get("/register")
+        html = response.get_data(as_text=True)
+        self.assertNotIn("pattern=", html)
+        self.assertIn("maxlength=\"32\"", html)
+
+    def test_registration_missing_csrf_shows_specific_recovery_message(self):
+        response = self.client.post(
+            "/register",
+            data={
+                "username": "reader67",
+                "password": "another secure passphrase 2026",
+                "password_confirm": "another secure passphrase 2026",
+            },
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertIn("CSRFトークンがフォームまたはセッションCookieから取得できませんでした", response.get_data(as_text=True))
 
     def test_registration_accepts_equivalent_loopback_origin(self):
         client = lawweb.app.test_client()
