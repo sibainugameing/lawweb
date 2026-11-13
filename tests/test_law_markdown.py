@@ -106,8 +106,8 @@ class LawMarkdownTests(unittest.TestCase):
         diff = law_markdown_diff(older, newer, "旧版", "新版")
         self.assertIn("--- 旧版", diff)
         self.assertIn("+++ 新版", diff)
-        self.assertIn("-この法律は、<道路> & 交通の安全を図る。", diff)
-        self.assertIn("+この法律は、<道路> & 交通の安全と円滑を図る。", diff)
+        self.assertIn("-1. この法律は、<道路> & 交通の安全を図る。", diff)
+        self.assertIn("+1. この法律は、<道路> & 交通の安全と円滑を図る。", diff)
 
     def test_identical_revisions_have_empty_diff(self):
         self.assertEqual(law_markdown_diff(SAMPLE, SAMPLE), "")
