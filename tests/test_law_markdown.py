@@ -158,6 +158,35 @@ class LawMarkdownTests(unittest.TestCase):
         markdown = law_xml_to_markdown(xml)
         self.assertIn("  - イ　細目の本文。", markdown)
 
+    def test_delete_hide_and_old_paragraph_attributes_are_visible(self):
+        xml = SAMPLE.replace(
+            '<Article Num="1">',
+            '<Article Num="1" Delete="true" Hide="true">',
+            1,
+        ).replace(
+            '<Paragraph Num="2">',
+            '<Paragraph Num="2" Hide="true" OldStyle="true" OldNum="1">',
+            1,
+        )
+        markdown = law_xml_to_markdown(xml)
+        self.assertIn("削除指定", markdown)
+        self.assertIn("非表示指定", markdown)
+        self.assertIn("旧形式（OldStyle=true）", markdown)
+        self.assertIn("旧番号（1）", markdown)
+
+    def test_main_provision_extract_attribute_is_visible(self):
+        xml = SAMPLE.replace("<MainProvision>", '<MainProvision Extract="true">')
+        markdown = law_xml_to_markdown(xml)
+        self.assertIn("## 本則（抄録）", markdown)
+
+    def test_supplementary_provision_type_and_amending_law_are_visible(self):
+        xml = SAMPLE.replace(
+            "<SupplProvision>",
+            '<SupplProvision Type="Amend" AmendLawNum="令和六年法律第一号" Extract="true">',
+        )
+        markdown = law_xml_to_markdown(xml)
+        self.assertIn("## 附則（改正時）（改正法令：令和六年法律第一号）（抄録）", markdown)
+
     def test_escaped_entities_are_decoded_as_text(self):
         markdown = law_xml_to_markdown(SAMPLE)
         self.assertIn("<道路> & 交通", markdown)
