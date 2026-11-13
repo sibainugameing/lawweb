@@ -51,6 +51,10 @@ Web UIおよびFlask APIに書き込み機能はありません。アカウン�
 
 パスワード変更時には、そのユーザーの既存セッションをすべて失効させます。
 
+アカウント単位のログイン試行制限に達してしまった場合は、15分待つか、ローカル管理者が次のコマンドで制限を解除できます。
+
+    .venv/bin/flask --app app reset-login-limits
+
 全セッションを強制ログアウト：
 
     .venv/bin/flask --app app revoke-sessions
