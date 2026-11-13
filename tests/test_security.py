@@ -151,6 +151,7 @@ class LawWebSecurityTests(unittest.TestCase):
         self.assertIn(b".mobile-nav", css.data)
         self.assertIn(b"function renderLawList", js.data)
         self.assertIn(b"function renderRuleList", js.data)
+        self.assertIn(b"compositionstart", js.data)
 
     def test_logged_in_user_keeps_authenticated_navigation_on_public_home(self):
         self.assertEqual(self.login().status_code, 302)
