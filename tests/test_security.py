@@ -280,6 +280,19 @@ class LawWebSecurityTests(unittest.TestCase):
         self.assertNotIn("path", hits[0])
         self.assertEqual(hits[0]["kind"], "law")
 
+    def test_public_search_is_read_only_and_rules_remain_private(self):
+        self.assertEqual(self.client.post("/api/public/search", json={"q": "民法"}).status_code, 405)
+        self.assertEqual(self.client.get("/api/rules").status_code, 401)
+
+    def test_public_ui_advertises_full_text_search_and_public_law_reading(self):
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("条文の言葉を検索", response.get_data(as_text=True))
+        script = self.client.get("/static/app.js").get_data(as_text=True)
+        self.assertIn("public/search", script)
+        self.assertIn("公開されている本文の整形表示", script)
+        self.assertIn("law-search-suggestions", self.client.get("/").get_data(as_text=True) + script)
+
     def test_public_search_rejects_empty_and_overlong_queries(self):
         self.assertEqual(self.client.get("/api/public/search").status_code, 400)
         long_query = "法" * 121
