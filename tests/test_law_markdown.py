@@ -111,7 +111,7 @@ class LawMarkdownTests(unittest.TestCase):
         <TableColumn>C</TableColumn></TableRow></Table></TableStruct>"""
         xml = SAMPLE.replace("</MainProvision>", table + "</MainProvision>")
         markdown = law_xml_to_markdown(xml)
-        self.assertIn("A\\\\|B", markdown)
+        self.assertIn("A\\|B", markdown)
 
     def test_table_and_toc_nested_structure_are_rendered(self):
         toc = """<TOC><TOCLabel>目次</TOCLabel>
