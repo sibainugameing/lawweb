@@ -123,6 +123,35 @@ class LawWebSecurityTests(unittest.TestCase):
         self.assertIn(b"LawWeb", response.data)
         self.assertIn(b"新規登録", response.data)
 
+    def test_public_ui_has_desktop_and_mobile_navigation(self):
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        self.assertIn("class=\"sidebar\"", html)
+        self.assertIn("class=\"mobile-nav\"", html)
+        self.assertIn("id=\"view-root\"", html)
+        self.assertIn("id=\"search-form\"", html)
+        self.assertIn("data-view=\"laws\"", html)
+        self.assertIn("viewport-fit=cover", html)
+        self.assertNotIn("brand-mark", html)
+
+    def test_authenticated_ui_exposes_all_reader_sections(self):
+        self.assertEqual(self.login().status_code, 302)
+        response = self.client.get("/")
+        html = response.get_data(as_text=True)
+        for view in ("overview", "laws", "rules", "activity", "integrity"):
+            self.assertIn(f'data-view="{view}"', html)
+        self.assertIn("アカウント", html)
+
+    def test_rebuilt_ui_assets_are_served(self):
+        css = self.client.get("/static/app.css")
+        js = self.client.get("/static/app.js")
+        self.assertEqual(css.status_code, 200)
+        self.assertEqual(js.status_code, 200)
+        self.assertIn(b".mobile-nav", css.data)
+        self.assertIn(b"function renderLawList", js.data)
+        self.assertIn(b"function renderRuleList", js.data)
+
     def test_logged_in_user_keeps_authenticated_navigation_on_public_home(self):
         self.assertEqual(self.login().status_code, 302)
         response = self.client.get("/")
