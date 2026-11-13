@@ -567,19 +567,23 @@ def register_post():
     return redirect(url_for("index"))
 
 
-@app.get("/account")
-def account_page():
+def render_account(error: str | None = None, success: str | None = None, status: int = 200):
     with closing(connect_db()) as db:
         row = db.execute(
             "SELECT username,created_at FROM users WHERE id=?", (g.user["id"],)
         ).fetchone()
     if row is None:
         return redirect(url_for("login"))
+    created = time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime(int(row["created_at"])))
     return render_template(
         "account.html", username=str(row["username"]),
-        created_at=int(row["created_at"]), error=None,
-        success=request.args.get("status"),
-    )
+        created_at=created, error=error, success=success,
+    ), status
+
+
+@app.get("/account")
+def account_page():
+    return render_account(success=request.args.get("status"))
 
 
 @app.post("/account/password")
@@ -599,15 +603,7 @@ def account_change_password():
             raise ValueError("新しいパスワードが一致しません。")
     except (ValueError, VerifyMismatchError, VerificationError, InvalidHashError) as exc:
         message = str(exc) if isinstance(exc, ValueError) else "現在のパスワードが正しくありません。"
-        with closing(connect_db()) as db:
-            row = db.execute(
-                "SELECT username,created_at FROM users WHERE id=?", (g.user["id"],)
-            ).fetchone()
-        return render_template(
-            "account.html", username=str(row["username"]) if row else "",
-            created_at=int(row["created_at"]) if row else 0,
-            error=message, success=None,
-        ), 400
+        return render_account(error=message, status=400)
 
     with closing(connect_db()) as db:
         db.execute("BEGIN IMMEDIATE")
@@ -647,15 +643,9 @@ def account_delete():
         if row is None or not PASSWORDS.verify(str(row["password_hash"]), password):
             raise ValueError("パスワードが正しくありません。")
     except (VerifyMismatchError, VerificationError, InvalidHashError):
-        return render_template(
-            "account.html", username=g.user["username"], created_at=0,
-            error="パスワードが正しくありません。", success=None,
-        ), 400
+        return render_account(error="パスワードが正しくありません。", status=400)
     if confirmation != "DELETE":
-        return render_template(
-            "account.html", username=g.user["username"], created_at=0,
-            error="確認欄に DELETE と入力してください。", success=None,
-        ), 400
+        return render_account(error="確認欄に DELETE と入力してください。", status=400)
 
     with closing(connect_db()) as db:
         db.execute("BEGIN IMMEDIATE")
@@ -868,8 +858,8 @@ def forbidden(_error):
     message = "セキュリティ検証に失敗しました。入力内容は送信されていません。フォームページを開き直して再試行してください。"
     if request.path == "/register":
         return render_template("register.html", error=message, username=request.form.get("username", "")[:32]), 403
-    if request.path.startswith("/account"):
-        return render_template("account.html", error=message, success=None), 403
+    if request.path.startswith("/account") and getattr(g, "user", None):
+        return render_account(error=message, status=403)
     return render_template("login.html", error=message, setup_message=""), 403
 
 
