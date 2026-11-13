@@ -885,6 +885,15 @@ document.addEventListener("click", async event => {
   if (action === "rule") return openRule(button.dataset.uuid);
   if (action === "history") return openHistory(button.dataset.kind, button.dataset.uuid);
   if (action === "revision") return openRevision(button.dataset.kind, button.dataset.uuid, button.dataset.rev);
+  if (action === "compare-revisions") return compareRevisions();
+  if (action === "law-display-mode") {
+    state.lawDisplayMode = button.dataset.mode === "xml" ? "xml" : "markdown";
+    if (state.lastDetail?.kind === "law") return renderLaw(state.lastDetail.data);
+  }
+  if (action === "revision-display-mode") {
+    state.revisionDisplayMode = button.dataset.mode === "xml" ? "xml" : "markdown";
+    if (state.lastRevisionData) return renderRevision("law", state.currentRevision, state.lastRevisionData);
+  }
   if (action === "back-to-laws") return loadLaws();
   if (action === "back-to-rules") return loadRules();
   if (action === "back-detail") {
@@ -949,6 +958,10 @@ document.addEventListener("change", event => {
     state.lawType = event.target.value;
     state.lawPage = 1;
     renderLawList();
+  } else if (event.target.id === "diff-older-select") {
+    state.diffOlder = event.target.value;
+  } else if (event.target.id === "diff-newer-select") {
+    state.diffNewer = event.target.value;
   }
 });
 
