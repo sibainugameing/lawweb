@@ -317,16 +317,14 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 @media (max-width: 620px) {
   .sidebar { display: none; }
   .main-shell { min-height: 100vh; padding-bottom: calc(66px + env(safe-area-inset-bottom)); }
-  .topbar { min-height: 66px; padding: 9px 13px; }
+  .topbar { min-height: 66px; flex-wrap: wrap; gap: 7px; padding: 10px 13px 12px; }
+  .page-heading { flex: 1 1 auto; }
   .page-heading h1 { font-size: 17px; }
-  .topbar-actions { gap: 6px; }
-  .global-search { width: 40px; height: 37px; flex: 0 0 40px; gap: 0; padding: 0; border: 0; background: transparent; }
-  .global-search:focus-within { width: min(190px, 48vw); flex-basis: min(190px,48vw); padding: 0 7px; border: 1px solid #9cbeb8; background: #fff; }
-  .global-search input { width: 0; opacity: 0; }
-  .global-search:focus-within input { width: 100%; opacity: 1; }
-  .search-symbol { width: 40px; flex: 0 0 40px; display: grid; place-items: center; font-size: 23px; }
-  .global-search:focus-within .search-symbol { width: 25px; flex-basis: 25px; }
-  .search-submit { display: none; }
+  .topbar-actions { width: 100%; flex: 1 1 100%; flex-wrap: wrap; justify-content: flex-start; gap: 6px; }
+  .global-search { order: 10; width: 100%; height: 38px; flex: 1 1 100%; gap: 8px; padding: 0 8px 0 10px; border: 1px solid var(--line-strong); background: #fbfcfc; }
+  .global-search input { width: 100%; flex: 1 1 auto; opacity: 1; }
+  .search-symbol { width: auto; flex: 0 0 auto; display: block; font-size: 21px; }
+  .search-submit { display: block; }
   .icon-button { width: 35px; height: 35px; }
   .topbar-account-link, .topbar-login-link { padding: 7px 5px; font-size: 9px; }
   .logout-button { min-height: 34px; padding: 0 8px; font-size: 9px; }
