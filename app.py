@@ -454,6 +454,9 @@ def register():
 
 @app.post("/register")
 def register_post():
+    if authenticated_user():
+        return redirect(url_for("index"))
+
     remote = request.remote_addr or "unknown"
     try:
         remote = str(ipaddress.ip_address(remote))
