@@ -232,8 +232,8 @@ def csrf_token() -> str:
     return value
 
 
-def same_local_origin(value: str, *, allow_path: bool = False) -> bool:
-    """Validate Origin/Referer while tolerating equivalent loopback host spellings."""
+def same_request_origin(value: str, *, allow_path: bool = False) -> bool:
+    """Validate the Origin/Referer host, scheme, and port against this request."""
     try:
         parsed = urlsplit(value)
         target = urlsplit("//" + request.host)
@@ -285,7 +285,7 @@ def verify_csrf() -> bool:
             return False
     else:
         source = origin if origin else referer
-        if source and not same_local_origin(source, allow_path=not bool(origin)):
+        if source and not same_request_origin(source, allow_path=not bool(origin)):
             g.csrf_failure_reason = "origin_mismatch"
             return False
 
