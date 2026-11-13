@@ -109,6 +109,11 @@ def _render_inline_container(element: ET.Element) -> str:
     parts: list[str] = []
 
     def visit(node: ET.Element) -> None:
+        if _tag(node) in {"Sup", "Sub"}:
+            value = "".join(node.itertext()).strip()
+            if value:
+                parts.append(("^" if _tag(node) == "Sup" else "_") + "(" + value + ")")
+            return
         if _tag(node) == "Ruby":
             base_parts = [node.text or ""]
             reading_parts = []
@@ -134,6 +139,10 @@ def _render_inline_container(element: ET.Element) -> str:
     return re.sub(r"[ \t\r\n]+", " ", "".join(parts)).strip()
 
 
+def _inline_text(element: ET.Element | None) -> str:
+    return _render_inline_container(element) if element is not None else ""
+
+
 def _render_table_cell(element: ET.Element, header: bool = False) -> str:
     value = _render_inline_container(element).replace("|", "\\|").replace("\\n", " ")
     annotations = []
@@ -149,7 +158,7 @@ def _render_table_cell(element: ET.Element, header: bool = False) -> str:
 
 
 def _render_table(element: ET.Element, out: list[str], depth: int = 0) -> None:
-    title = _text(_first(element, "TableStructTitle"))
+    title = _inline_text(_first(element, "TableStructTitle"))
     remarks = _first(element, "Remarks")
     table = _first(element, "Table")
     if title:
@@ -241,7 +250,7 @@ def _render_heading(
     title_tag: str,
     fallback_suffix: str,
 ) -> None:
-    title = _text(_first(element, title_tag))
+    title = _inline_text(_first(element, title_tag))
     number = _attr(element, "Num")
     title = title or (f"第{number}{fallback_suffix}" if number else fallback_suffix)
     attributes = _attributes(element)
@@ -254,7 +263,7 @@ def _render_heading(
 
 def _render_article(element: ET.Element, out: list[str], depth: int) -> None:
     title = _text(_first(element, "ArticleTitle"))
-    caption = _text(_first(element, "ArticleCaption"))
+    caption = _inline_text(_first(element, "ArticleCaption"))
     number = _number(element, "第")
     title = title or (number + "条" if number else "条文")
     heading = _join_nonempty([title, caption])
@@ -267,7 +276,7 @@ def _render_article(element: ET.Element, out: list[str], depth: int) -> None:
 
 def _render_paragraph(element: ET.Element, out: list[str], depth: int) -> None:
     number = _text(_first(element, "ParagraphNum")) or _number(element)
-    caption = _text(_first(element, "ParagraphCaption"))
+    caption = _inline_text(_first(element, "ParagraphCaption"))
     sentence_nodes = [
         child for child in list(element)
         if _tag(child) in {"ParagraphSentence", "Sentence"}
@@ -303,7 +312,7 @@ def _render_item(element: ET.Element, out: list[str], depth: int, marker: str = 
     if tag.startswith("Subitem"):
         title_tags.insert(0, tag + "Title")
         sentence_tags.insert(0, tag + "Sentence")
-    title = _text(_first(element, *title_tags))
+    title = _inline_text(_first(element, *title_tags))
     sentence_node = _first(element, *sentence_tags)
     sentence = _render_inline_container(sentence_node) if sentence_node is not None else ""
     if not sentence:
@@ -346,8 +355,8 @@ TOC_TITLE_TAGS = {
 def _render_toc_item(element: ET.Element, out: list[str], depth: int) -> None:
     tag = _tag(element)
     title_tag, secondary_tag = TOC_TITLE_TAGS[tag]
-    title = _text(_first(element, title_tag))
-    secondary = _text(_first(element, secondary_tag))
+    title = _inline_text(_first(element, title_tag))
+    secondary = _inline_text(_first(element, secondary_tag))
     text = _join_nonempty([title, secondary])
     if not text:
         text = _attr(element, "Num") or tag
@@ -399,7 +408,7 @@ def _render_node(element: ET.Element, out: list[str], depth: int = 0) -> None:
         return
 
     if tag == "SupplProvision":
-        label = _text(_first(element, "SupplProvisionLabel", "SupplProvisionTitle"))
+        label = _inline_text(_first(element, "SupplProvisionLabel", "SupplProvisionTitle"))
         heading = label if label.startswith("附則") else ("附則" + (f"　{label}" if label else ""))
         amendment = _attr(element, "AmendLawNum")
         if amendment:
@@ -462,7 +471,7 @@ def _render_node(element: ET.Element, out: list[str], depth: int = 0) -> None:
             "AppdxFigTitle", "SupplProvisionAppdxTableTitle",
             "SupplProvisionAppdxStyleTitle", "SupplProvisionAppdxFormatTitle",
         )
-        label = _text(_first(element, *title_tags))
+        label = _inline_text(_first(element, *title_tags))
         number = _number(element)
         heading = _join_nonempty([APPENDIX_TAGS[tag], number, label])
         out.extend(["", "## " + heading, ""])
