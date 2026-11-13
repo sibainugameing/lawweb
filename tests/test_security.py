@@ -311,6 +311,42 @@ class LawWebSecurityTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 200)
 
+    def test_private_lan_ip_and_ipv6_ula_are_allowed(self):
+        self.assertTrue(lawweb.is_local_network_ip("127.0.0.1"))
+        self.assertTrue(lawweb.is_local_network_ip("192.168.1.24"))
+        self.assertTrue(lawweb.is_local_network_ip("10.20.30.40"))
+        self.assertTrue(lawweb.is_local_network_ip("fd12:3456:789a::1"))
+        self.assertFalse(lawweb.is_local_network_ip("8.8.8.8"))
+        self.assertFalse(lawweb.is_local_network_ip("169.254.1.2"))
+        self.assertFalse(lawweb.is_local_network_ip("192.0.2.10"))
+
+    def test_registration_works_from_private_lan_origin(self):
+        client = lawweb.app.test_client()
+        page = client.get(
+            "/register", base_url="http://192.168.1.20:5000",
+            environ_base={"REMOTE_ADDR": "192.168.1.30"},
+        )
+        self.assertEqual(page.status_code, 200)
+        match = re.search(r'name="csrf_token" value="([^"]+)"', page.get_data(as_text=True))
+        self.assertIsNotNone(match)
+        response = client.post(
+            "/register",
+            base_url="http://192.168.1.20:5000",
+            environ_base={"REMOTE_ADDR": "192.168.1.30"},
+            data={
+                "csrf_token": match.group(1), "username": "lanreader",
+                "password": "another secure passphrase 2026",
+                "password_confirm": "another secure passphrase 2026",
+            },
+            headers={
+                "Origin": "http://192.168.1.20:5000",
+                "Sec-Fetch-Site": "same-origin",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        with lawweb.connect_db() as db:
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM users WHERE username='lanreader'").fetchone()[0], 1)
+
     def test_public_client_is_rejected_even_with_private_host_header(self):
         response = self.client.get(
             "/login", base_url="http://192.168.1.20:5000",
