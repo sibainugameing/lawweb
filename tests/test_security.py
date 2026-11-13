@@ -323,6 +323,45 @@ class LawWebSecurityTests(unittest.TestCase):
         self.assertEqual(response.status_code, 403)
         self.assertIn("CSRFトークンがフォームまたはセッションCookieから取得できませんでした", response.get_data(as_text=True))
 
+    def test_registration_accepts_null_origin_with_same_origin_fetch_metadata(self):
+        client = lawweb.app.test_client()
+        page = client.get("/register", base_url="http://127.0.0.1:5000")
+        match = re.search(r'name="csrf_token" value="([^"]+)"', page.get_data(as_text=True))
+        self.assertIsNotNone(match)
+        response = client.post(
+            "/register",
+            base_url="http://127.0.0.1:5000",
+            data={
+                "csrf_token": match.group(1), "username": "reader89",
+                "password": "another secure passphrase 2026",
+                "password_confirm": "another secure passphrase 2026",
+            },
+            headers={"Origin": "null", "Sec-Fetch-Site": "same-origin"},
+        )
+        self.assertEqual(response.status_code, 302)
+        with lawweb.connect_db() as db:
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM users WHERE username='reader89'").fetchone()[0], 1)
+
+    def test_null_origin_without_same_origin_metadata_is_rejected(self):
+        client = lawweb.app.test_client()
+        page = client.get("/register", base_url="http://127.0.0.1:5000")
+        match = re.search(r'name="csrf_token" value="([^"]+)"', page.get_data(as_text=True))
+        self.assertIsNotNone(match)
+        response = client.post(
+            "/register",
+            base_url="http://127.0.0.1:5000",
+            data={
+                "csrf_token": match.group(1), "username": "reader90",
+                "password": "another secure passphrase 2026",
+                "password_confirm": "another secure passphrase 2026",
+            },
+            headers={"Origin": "null", "Sec-Fetch-Site": "cross-site"},
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertIn("別サイトからの送信と判定", response.get_data(as_text=True))
+        with lawweb.connect_db() as db:
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM users WHERE username='reader90'").fetchone()[0], 0)
+
     def test_registration_accepts_equivalent_loopback_origin(self):
         client = lawweb.app.test_client()
         response = client.get("/register", base_url="http://127.0.0.1:5000")
