@@ -606,51 +606,153 @@ function renderRule(rule) {
     ]) + '</aside></div></div>');
 }
 
+function historySelect(label, id, selected, commits) {
+  const options = commits.map(commit => {
+    const hash = commit.hash || "";
+    const subject = commit.subject || commit.message || "コミット";
+    const date = dateText(commit.date || commit.author_date || commit.committer_date);
+    return '<option value="' + esc(hash) + '"' + (hash === selected ? " selected" : "") + '>' +
+      esc(shortHash(hash) + " · " + date + " · " + subject) + '</option>';
+  }).join("");
+  return '<label class="diff-select-label"><span>' + esc(label) + '</span><select class="control diff-select" id="' +
+    esc(id) + '">' + options + '</select></label>';
+}
+
+function renderHistoryPage(kind, uuid, commits) {
+  const detail = state.lastDetail?.data || {};
+  const name = kind === "law" ? (detail.law?.name || "法令") : (detail.name || "ルール");
+  setPage(kind === "law" ? "laws" : "rules", kind === "law" ? "改正履歴" : "変更履歴");
+
+  const rows = commits.length ? '<div class="history-list">' + commits.map(commit => {
+    const rev = commit.hash || "";
+    return '<article class="history-item"><div class="history-rail"><span class="history-dot"></span></div>' +
+      '<div class="history-main"><div class="history-title">' + esc(commit.subject || commit.message || "コミット") + '</div>' +
+      '<div class="history-meta">' + esc([shortHash(rev), commit.author].filter(Boolean).join(" · ")) + '</div>' +
+      '<button class="surface-link history-action" type="button" data-action="revision" data-kind="' + esc(kind) +
+      '" data-uuid="' + esc(uuid) + '" data-rev="' + esc(rev) + '">この版を読む →</button></div>' +
+      '<time class="history-time">' + esc(dateText(commit.date || commit.author_date || commit.committer_date)) +
+      '</time></article>';
+  }).join("") + '</div>' : emptyState("変更履歴はありません", "この文書に対応するGitコミットはありません。", "↗");
+
+  let comparePanel = "";
+  if (kind === "law") {
+    if (commits.length >= 2) {
+      if (!state.diffOlder || !commits.some(c => c.hash === state.diffOlder)) state.diffOlder = commits[1].hash;
+      if (!state.diffNewer || !commits.some(c => c.hash === state.diffNewer)) state.diffNewer = commits[0].hash;
+      comparePanel = '<section class="surface diff-picker"><div class="surface-header"><div class="surface-heading">' +
+        '<h3 class="surface-title">2つの版を比較</h3><p class="surface-subtitle">古い版と新しい版を選択すると、整形済みMarkdownの差分を表示します。</p>' +
+        '</div><span class="pill neutral">MARKDOWN DIFF</span></div><div class="diff-picker-body">' +
+        historySelect("比較元（古い版）", "diff-older-select", state.diffOlder, commits) +
+        historySelect("比較先（新しい版）", "diff-newer-select", state.diffNewer, commits) +
+        '<button class="action-button primary" type="button" data-action="compare-revisions">差分を見る</button></div></section>';
+    } else {
+      comparePanel = '<section class="surface"><div class="surface-body">' +
+        '<div class="note-box">差分を見るには、同じ法令の履歴が2件以上必要です。</div></div></section>';
+    }
+  }
+
+  setContent('<div class="view-stack"><button class="detail-back" type="button" data-action="back-detail">← 文書詳細に戻る</button>' +
+    '<div class="view-heading"><div class="view-heading-main"><p class="eyebrow">履歴 / ' + esc(kind === "law" ? "法令" : "ルール") +
+    '</p><h2>' + esc(name) + (kind === "law" ? " の改正履歴" : " の変更履歴") +
+    '</h2><p>' + (kind === "law" ? "改正前後の本文をMarkdownとして比較できます。" : "Gitで記録された変更を新しい順に表示しています。") +
+    '</p></div><span class="readonly-note">' + formatNumber(commits.length) + ' 件</span></div>' +
+    comparePanel + '<section class="surface"><div class="surface-header"><div class="surface-heading">' +
+    '<h3 class="surface-title">コミット履歴</h3><p class="surface-subtitle">新しい順</p></div></div>' +
+    '<div class="surface-body flush">' + rows + '</div></section></div>');
+}
+
 async function openHistory(kind, uuid) {
   state.historyKind = kind;
   state.historyUuid = uuid;
   loading("変更履歴を読み込んでいます");
   try {
     const data = await api(kind + "s/" + encodeURIComponent(uuid) + "/history?limit=100");
-    const commits = data.commits || [];
-    const detail = state.lastDetail?.data || {};
-    const name = kind === "law" ? (detail.law?.name || "法令") : (detail.name || "ルール");
-    setPage(kind === "law" ? "laws" : "rules", "変更履歴");
-    const rows = commits.length ? '<div class="history-list">' + commits.map(commit => {
-      const rev = commit.hash || "";
-      return '<article class="history-item"><div class="history-rail"><span class="history-dot"></span></div>' +
-        '<div class="history-main"><div class="history-title">' + esc(commit.subject || commit.message || "コミット") + '</div>' +
-        '<div class="history-meta">' + esc([shortHash(rev), commit.author].filter(Boolean).join(" · ")) + '</div>' +
-        '<button class="surface-link history-action" type="button" data-action="revision" data-kind="' + esc(kind) +
-        '" data-uuid="' + esc(uuid) + '" data-rev="' + esc(rev) + '">この時点の内容を見る →</button></div>' +
-        '<time class="history-time">' + esc(dateText(commit.date || commit.author_date || commit.committer_date)) +
-        '</time></article>';
-    }).join("") + '</div>' : emptyState("変更履歴はありません", "この文書に対応するGitコミットはありません。", "↗");
-    setContent('<div class="view-stack"><button class="detail-back" type="button" data-action="back-detail">← 文書詳細に戻る</button>' +
-      '<div class="view-heading"><div class="view-heading-main"><p class="eyebrow">履歴 / ' + esc(kind === "law" ? "法令" : "ルール") +
-      '</p><h2>' + esc(name) + ' の変更履歴</h2><p>Gitで記録された変更を新しい順に表示しています。</p></div>' +
-      '<span class="readonly-note">' + formatNumber(commits.length) + ' 件</span></div>' +
-      '<section class="surface"><div class="surface-body flush">' + rows + '</div></section></div>');
+    state.historyCommits = data.commits || [];
+    state.diffOlder = state.historyCommits[1]?.hash || "";
+    state.diffNewer = state.historyCommits[0]?.hash || "";
+    renderHistoryPage(kind, uuid, state.historyCommits);
   } catch (error) {
     errorView(error);
   }
 }
 
 async function openRevision(kind, uuid, revision) {
-  loading("過去の内容を読み込んでいます");
+  loading("過去の版を読み込んでいます");
   try {
     const data = await api(kind + "s/" + encodeURIComponent(uuid) +
       "/revisions/" + encodeURIComponent(revision));
-    const content = data.xml || data.body || JSON.stringify(data, null, 2);
-    setPage(kind === "law" ? "laws" : "rules", "過去の版");
-    setContent('<div class="view-stack"><button class="detail-back" type="button" data-action="back-history">← 変更履歴に戻る</button>' +
+    state.currentRevision = revision;
+    state.lastRevisionData = data;
+    state.revisionDisplayMode = "markdown";
+    renderRevision(kind, revision, data);
+  } catch (error) {
+    errorView(error);
+  }
+}
+
+function renderRevision(kind, revision, data) {
+  setPage(kind === "law" ? "laws" : "rules", "過去の版");
+  const back = '<button class="detail-back" type="button" data-action="back-history">← 履歴に戻る</button>';
+  if (kind === "law") {
+    const mode = state.revisionDisplayMode || "markdown";
+    const tabs = '<div class="reader-tabs" role="tablist" aria-label="過去版の表示形式">' +
+      '<button class="reader-tab ' + (mode === "markdown" ? "active" : "") + '" type="button" role="tab" aria-selected="' +
+      (mode === "markdown" ? "true" : "false") + '" data-action="revision-display-mode" data-mode="markdown">整形表示</button>' +
+      '<button class="reader-tab ' + (mode === "xml" ? "active" : "") + '" type="button" role="tab" aria-selected="' +
+      (mode === "xml" ? "true" : "false") + '" data-action="revision-display-mode" data-mode="xml">XML原文</button></div>';
+    let content;
+    if (mode === "xml") {
+      content = '<pre class="source-content">' + esc(data.xml || "XMLデータがありません。") + '</pre>';
+    } else if (data.markdown) {
+      content = '<article class="markdown-document">' + markdownToHtml(data.markdown) + '</article>';
+    } else {
+      content = '<div class="reader-error">' + esc(data.markdown_error || "Markdownに変換できませんでした。") + '</div>' +
+        '<pre class="source-content">' + esc(data.xml || "XMLデータがありません。") + '</pre>';
+    }
+    setContent('<div class="view-stack">' + back +
       '<div class="view-heading"><div class="view-heading-main"><p class="eyebrow">過去の版</p>' +
-      '<h2>コミット ' + esc(shortHash(revision)) + '</h2><p>選択したコミット時点の読み取り専用データです。</p></div>' +
+      '<h2>コミット ' + esc(shortHash(revision)) + '</h2><p>このコミット時点の法令本文です。</p></div>' +
       '<span class="readonly-note">読み取り専用</span></div>' +
-      '<section class="source-panel"><div class="source-panel-header"><strong>' +
-      (kind === "law" ? "法令XML" : "ルール本文") + '</strong><span class="mono">' + esc(revision) +
-      '</span></div><pre class="' + (kind === "law" ? "source-content" : "body-content") + '">' +
-      esc(content) + '</pre></section></div>');
+      '<section class="source-panel law-reader"><div class="reader-panel-header"><div><strong>法令本文</strong>' +
+      '<span>' + esc(revision) + '</span></div>' + tabs + '</div>' + content + '</section></div>');
+    return;
+  }
+
+  const ruleBody = data.body || "";
+  setContent('<div class="view-stack">' + back +
+    '<div class="view-heading"><div class="view-heading-main"><p class="eyebrow">過去の版</p>' +
+    '<h2>コミット ' + esc(shortHash(revision)) + '</h2><p>このコミット時点のルール本文です。</p></div>' +
+    '<span class="readonly-note">読み取り専用</span></div>' +
+    '<section class="source-panel"><div class="source-panel-header"><strong>ルール本文</strong>' +
+    '<span class="mono">' + esc(revision) + '</span></div>' +
+    '<article class="markdown-document">' + markdownToHtml(ruleBody) + '</article></section></div>');
+}
+
+async function compareRevisions() {
+  const older = state.diffOlder;
+  const newer = state.diffNewer;
+  if (!older || !newer || older === newer) {
+    setContent('<div class="view-stack">' + statusRow("比較できません", "異なる2つの版を選択してください。", "warning") +
+      '<button class="detail-back" type="button" data-action="back-history">← 履歴に戻る</button></div>');
+    return;
+  }
+  loading("Markdownの差分を計算しています");
+  try {
+    const result = await api("laws/" + encodeURIComponent(state.historyUuid) +
+      "/diff?older=" + encodeURIComponent(older) + "&newer=" + encodeURIComponent(newer));
+    setPage("laws", "改正差分");
+    const diffMarkup = diffToHtml(result.diff || "");
+    setContent('<div class="view-stack"><button class="detail-back" type="button" data-action="back-history">← 改正履歴に戻る</button>' +
+      '<div class="view-heading"><div class="view-heading-main"><p class="eyebrow">法令 / 改正差分</p>' +
+      '<h2>変更箇所</h2><p>XMLをMarkdownに変換した後の行単位差分です。構造や本文の変更を確認できます。</p></div>' +
+      '<span class="readonly-note">整形済みMarkdown</span></div>' +
+      '<div class="diff-summary"><div><strong class="diff-add-count">+' + formatNumber(result.additions) + '</strong><span>追加</span></div>' +
+      '<div><strong class="diff-remove-count">−' + formatNumber(result.deletions) + '</strong><span>削除</span></div>' +
+      '<div class="diff-version"><span>比較元</span><strong class="mono">' + esc(shortHash(older)) + '</strong></div>' +
+      '<div class="diff-version"><span>比較先</span><strong class="mono">' + esc(shortHash(newer)) + '</strong></div></div>' +
+      '<section class="surface"><div class="surface-header"><div class="surface-heading">' +
+      '<h3 class="surface-title">Markdown差分</h3><p class="surface-subtitle">緑：追加 / 赤：削除 / 灰：文脈</p></div></div>' +
+      '<div class="diff-container">' + diffMarkup + '</div></section></div>');
   } catch (error) {
     errorView(error);
   }
