@@ -670,8 +670,12 @@ async function openHistory(kind, uuid) {
   try {
     const data = await api(kind + "s/" + encodeURIComponent(uuid) + "/history?limit=100");
     state.historyCommits = data.commits || [];
-    state.diffOlder = state.historyCommits[1]?.hash || "";
-    state.diffNewer = state.historyCommits[0]?.hash || "";
+    if (!state.diffOlder || !state.historyCommits.some(commit => commit.hash === state.diffOlder)) {
+      state.diffOlder = state.historyCommits[1]?.hash || "";
+    }
+    if (!state.diffNewer || !state.historyCommits.some(commit => commit.hash === state.diffNewer)) {
+      state.diffNewer = state.historyCommits[0]?.hash || "";
+    }
     renderHistoryPage(kind, uuid, state.historyCommits);
   } catch (error) {
     errorView(error);
