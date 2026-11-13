@@ -64,6 +64,49 @@ class LawWebSecurityTests(unittest.TestCase):
             self.assertFalse(lawweb.same_request_origin("http://localhost:5001"))
             self.assertFalse(lawweb.same_request_origin("https://localhost:5000"))
 
+    def test_lan_registration_accepts_null_origin_without_fetch_metadata(self):
+        base_url = "http://192.168.1.16:5000"
+        remote = {"REMOTE_ADDR": "192.168.1.25"}
+        page = self.client.get("/register", base_url=base_url, environ_base=remote)
+        self.assertEqual(page.status_code, 200)
+        match = re.search(r'name="csrf_token" value="([^"]+)"', page.get_data(as_text=True))
+        self.assertIsNotNone(match)
+        response = self.client.post(
+            "/register",
+            base_url=base_url,
+            environ_base=remote,
+            data={
+                "csrf_token": match.group(1),
+                "username": "lanreader",
+                "password": "another secure passphrase 2026",
+                "password_confirm": "another secure passphrase 2026",
+            },
+            headers={"Origin": "null"},
+        )
+        self.assertEqual(response.status_code, 302)
+        with lawweb.connect_db() as db:
+            self.assertIsNotNone(db.execute("SELECT id FROM users WHERE username='lanreader'").fetchone())
+
+    def test_lan_registration_rejects_null_origin_marked_cross_site(self):
+        base_url = "http://192.168.1.16:5000"
+        remote = {"REMOTE_ADDR": "192.168.1.25"}
+        page = self.client.get("/register", base_url=base_url, environ_base=remote)
+        match = re.search(r'name="csrf_token" value="([^"]+)"', page.get_data(as_text=True))
+        self.assertIsNotNone(match)
+        response = self.client.post(
+            "/register",
+            base_url=base_url,
+            environ_base=remote,
+            data={
+                "csrf_token": match.group(1),
+                "username": "blockedlan",
+                "password": "another secure passphrase 2026",
+                "password_confirm": "another secure passphrase 2026",
+            },
+            headers={"Origin": "null", "Sec-Fetch-Site": "cross-site"},
+        )
+        self.assertEqual(response.status_code, 403)
+
     def test_register_csrf_failure_keeps_registration_form_visible(self):
         token = self.csrf("/register")
         response = self.client.post(
@@ -198,16 +241,53 @@ class LawWebSecurityTests(unittest.TestCase):
         self.assertNotIn("path", law)
         self.assertNotIn("version", law)
 
-    def test_public_law_detail_does_not_expose_xml_or_path(self):
+    def test_public_law_detail_returns_markdown_without_raw_xml_or_private_fields(self):
+        law_uuid = "550e8400-e29b-41d4-a716-446655440000"
+        xml = """<law><metadata><name>公開試験法</name><law-number>令和元年法律第一号</law-number><type>法律</type></metadata>
+        <body><MainProvision><Article Num="1"><ArticleTitle>第一条</ArticleTitle>
+        <Paragraph Num="1"><ParagraphSentence><Sentence>公開された本文。</Sentence></ParagraphSentence></Paragraph>
+        </Article></MainProvision></body></law>"""
         detail = {
-            "law": {"uuid": "u-1", "name": "Test Act", "path": "secret.xml"},
-            "xml": "<law>private</law>",
+            "law": {"uuid": law_uuid, "name": "公開試験法", "path": "secret.xml", "version": "private-version"},
+            "xml": xml,
         }
         with patch.object(lawweb, "lawgit_request", return_value=(detail, None)):
-            response = self.client.get("/api/public/laws/u-1")
+            response = self.client.get("/api/public/laws/" + law_uuid)
         self.assertEqual(response.status_code, 200)
-        self.assertNotIn("xml", response.json["result"])
-        self.assertNotIn("path", response.json["result"]["law"])
+        result = response.json["result"]
+        self.assertIn("公開された本文。", result["markdown"])
+        self.assertNotIn("xml", result)
+        self.assertNotIn("path", result["law"])
+        self.assertNotIn("version", result["law"])
+
+    def test_public_search_returns_only_law_hits_and_allowlisted_fields(self):
+        law_uuid = "550e8400-e29b-41d4-a716-446655440000"
+        rule_uuid = "550e8400-e29b-41d4-a716-446655440001"
+        search_result = {
+            "query": "契約",
+            "hits": [
+                {"kind": "law", "uuid": law_uuid, "name": "民法", "matched": "本文", "snippet": "契約に関する規定", "path": "private/law.xml"},
+                {"kind": "rule", "uuid": rule_uuid, "name": "個人ルール", "matched": "本文", "snippet": "秘密のルール"},
+            ],
+            "truncated": False,
+        }
+        with patch.object(lawweb, "lawgit_request", return_value=(search_result, None)):
+            response = self.client.get("/api/public/search?q=%E5%A5%91%E7%B4%84")
+        self.assertEqual(response.status_code, 200)
+        hits = response.json["result"]["hits"]
+        self.assertEqual(len(hits), 1)
+        self.assertEqual(hits[0]["name"], "民法")
+        self.assertNotIn("path", hits[0])
+        self.assertEqual(hits[0]["kind"], "law")
+
+    def test_public_search_rejects_empty_and_overlong_queries(self):
+        self.assertEqual(self.client.get("/api/public/search").status_code, 400)
+        long_query = "法" * 121
+        self.assertEqual(self.client.get("/api/public/search?q=" + long_query).status_code, 400)
+
+    def test_public_law_detail_rejects_invalid_uuid(self):
+        response = self.client.get("/api/public/laws/not-a-uuid")
+        self.assertEqual(response.status_code, 400)
 
     def test_law_detail_api_includes_markdown_and_preserves_xml(self):
         self.assertEqual(self.login().status_code, 302)
@@ -367,7 +447,7 @@ class LawWebSecurityTests(unittest.TestCase):
             self.assertTrue(lawweb.is_limited(keys, now))
 
     def test_registration_attempts_are_rate_limited(self):
-        for index in range(3):
+        for index in range(lawweb.REGISTRATION_LIMIT):
             token = self.csrf("/register")
             response = self.client.post(
                 "/register",
