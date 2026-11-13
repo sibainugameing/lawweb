@@ -186,10 +186,6 @@ def _render_paragraph(element: ET.Element, out: list[str], depth: int) -> None:
         out.append(prefix + marker + sentence)
     elif number:
         out.append(prefix + f"{number}.")
-    else:
-        direct = (element.text or "").strip()
-        if direct:
-            out.append(prefix + direct)
 
     excluded = {"ParagraphNum", "ParagraphSentence", "Sentence"}
     _render_children(element, out, depth + 1, excluded)
@@ -303,7 +299,7 @@ def _render_node(element: ET.Element, out: list[str], depth: int = 0) -> None:
     if attrs:
         label += f"（{attrs}）"
     if direct_text:
-        out.extend(["", "  " * depth + f"**{label}**", "", "  " * (depth + 1) + direct_text])
+        out.extend(["", "  " * depth + f"**{label}**", ""])
     elif tag not in KNOWN_WRAPPERS:
         out.extend(["", "  " * depth + f"**{label}**", ""])
     _render_children(element, out, depth + 1)
