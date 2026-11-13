@@ -190,14 +190,20 @@ def _render_paragraph(element: ET.Element, out: list[str], depth: int) -> None:
 
 
 def _render_item(element: ET.Element, out: list[str], depth: int, marker: str = "-") -> None:
-    title = _text(_first(element, "ItemTitle", "SubitemTitle"))
-    sentence_node = _first(
-        element, "ItemSentence", "SubitemSentence",
+    tag = _tag(element)
+    title_tags = ["ItemTitle", "SubitemTitle"]
+    sentence_tags = [
+        "ItemSentence", "SubitemSentence",
         "Subitem1Sentence", "Subitem2Sentence", "Subitem3Sentence",
         "Subitem4Sentence", "Subitem5Sentence", "Subitem6Sentence",
         "Subitem7Sentence", "Subitem8Sentence", "Subitem9Sentence",
         "Subitem10Sentence",
-    )
+    ]
+    if tag.startswith("Subitem"):
+        title_tags.insert(0, tag + "Title")
+        sentence_tags.insert(0, tag + "Sentence")
+    title = _text(_first(element, *title_tags))
+    sentence_node = _first(element, *sentence_tags)
     sentence = _render_inline_container(sentence_node) if sentence_node is not None else ""
     if not sentence:
         sentence = _text(_first(element, "Sentence"))
@@ -212,13 +218,7 @@ def _render_item(element: ET.Element, out: list[str], depth: int, marker: str = 
         attrs = _attributes(element)
         out.append(f"{prefix}{marker} [{_tag(element)}]" + (f"（{attrs}）" if attrs else ""))
 
-    excluded = {
-        "ItemTitle", "SubitemTitle", "ItemSentence", "SubitemSentence",
-        "Subitem1Sentence", "Subitem2Sentence", "Subitem3Sentence",
-        "Subitem4Sentence", "Subitem5Sentence", "Subitem6Sentence",
-        "Subitem7Sentence", "Subitem8Sentence", "Subitem9Sentence",
-        "Subitem10Sentence", "Sentence",
-    }
+    excluded = set(title_tags) | set(sentence_tags) | {"Sentence"}
     _render_children(element, out, depth + 1, excluded)
 
 
