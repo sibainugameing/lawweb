@@ -378,6 +378,17 @@ function categorySurface(categories, kind) {
   ).join("") + '</div>';
 }
 
+function populateLawSuggestions(laws) {
+  const list = document.getElementById("law-search-suggestions");
+  if (!list) return;
+  const terms = new Set();
+  for (const law of (laws || []).slice(0, 400)) {
+    if (law.name) terms.add(String(law.name));
+    if (law.law_number) terms.add(String(law.law_number));
+  }
+  list.innerHTML = [...terms].map(value => '<option value="' + esc(value) + '"></option>').join("");
+}
+
 async function loadOverview() {
   setPage("overview");
   loading("概要を読み込んでいます");
@@ -391,11 +402,12 @@ async function loadOverview() {
     const ping = data.ping || {};
     const laws = data.laws?.laws || [];
     const lawCategories = data.categories?.laws || [];
+    state.lawCategories = lawCategories;
+    populateLawSuggestions(laws);
     const errors = Object.keys(data.errors || {});
     connection(true, "接続済み", ping.root || "LawGit API");
 
     if (!IS_AUTHENTICATED) {
-      state.lawCategories = lawCategories;
       const publicIntro = '<section class="welcome-panel public-search-welcome"><div class="welcome-copy">' +
         '<p class="eyebrow">法令ライブラリ</p><h2>言葉から、法令を探す。</h2>' +
         '<p>法令名・法令番号だけでなく、条文の中にある語句からも検索できます。気になる法令を開いて本文を読めます。</p>' +
@@ -511,6 +523,7 @@ async function loadLaws() {
   try {
     const result = await api(IS_AUTHENTICATED ? "laws" : "public/laws");
     state.laws = result.laws || [];
+    populateLawSuggestions(state.laws);
     renderLawList();
   } catch (error) {
     errorView(error);
