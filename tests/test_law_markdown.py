@@ -187,6 +187,21 @@ class LawMarkdownTests(unittest.TestCase):
         markdown = law_xml_to_markdown(xml)
         self.assertIn("## 附則（改正時）（改正法令：令和六年法律第一号）（抄録）", markdown)
 
+    def test_inline_xml_attributes_are_preserved_in_readable_text(self):
+        xml = SAMPLE.replace(
+            "<Sentence>この法律は、&lt;道路&gt; &amp; 交通の安全を図る。</Sentence>",
+            '<Sentence Style="emphasis">この法律は、&lt;道路&gt; &amp; 交通の安全を図る。</Sentence>',
+        )
+        markdown = law_xml_to_markdown(xml)
+        self.assertIn("〔Sentence: Style=\'emphasis\'〕", markdown)
+
+    def test_table_cell_newlines_are_rendered_as_one_line(self):
+        table = """<TableStruct><Table><TableRow><TableColumn>第一行
+        第二行</TableColumn></TableRow></Table></TableStruct>"""
+        xml = SAMPLE.replace("</MainProvision>", table + "</MainProvision>")
+        markdown = law_xml_to_markdown(xml)
+        self.assertIn("| 第一行 第二行 |", markdown)
+
     def test_escaped_entities_are_decoded_as_text(self):
         markdown = law_xml_to_markdown(SAMPLE)
         self.assertIn("<道路> & 交通", markdown)
