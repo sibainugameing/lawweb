@@ -87,6 +87,25 @@ class LawWebSecurityTests(unittest.TestCase):
         with lawweb.connect_db() as db:
             self.assertIsNotNone(db.execute("SELECT id FROM users WHERE username='lanreader'").fetchone())
 
+    def test_lan_null_origin_still_requires_the_session_csrf_token(self):
+        base_url = "http://192.168.1.16:5000"
+        remote = {"REMOTE_ADDR": "192.168.1.25"}
+        page = self.client.get("/register", base_url=base_url, environ_base=remote)
+        self.assertEqual(page.status_code, 200)
+        response = self.client.post(
+            "/register",
+            base_url=base_url,
+            environ_base=remote,
+            data={
+                "csrf_token": "incorrect-token",
+                "username": "wrongtoken",
+                "password": "another secure passphrase 2026",
+                "password_confirm": "another secure passphrase 2026",
+            },
+            headers={"Origin": "null"},
+        )
+        self.assertEqual(response.status_code, 403)
+
     def test_lan_registration_rejects_null_origin_marked_cross_site(self):
         base_url = "http://192.168.1.16:5000"
         remote = {"REMOTE_ADDR": "192.168.1.25"}
@@ -605,7 +624,7 @@ class LawWebSecurityTests(unittest.TestCase):
         with lawweb.connect_db() as db:
             self.assertEqual(db.execute("SELECT COUNT(*) FROM users WHERE username='reader89'").fetchone()[0], 1)
 
-    def test_null_origin_without_same_origin_metadata_is_rejected(self):
+    def test_null_origin_marked_cross_site_is_rejected(self):
         client = lawweb.app.test_client()
         page = client.get("/register", base_url="http://127.0.0.1:5000")
         match = re.search(r'name="csrf_token" value="([^"]+)"', page.get_data(as_text=True))
