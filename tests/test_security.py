@@ -299,15 +299,29 @@ class LawWebSecurityTests(unittest.TestCase):
 
     def test_local_referer_with_form_path_is_accepted(self):
         with lawweb.app.test_request_context(
-            "/register", base_url="http://127.0.0.1:5000",
-            headers={"Referer": "http://localhost:5000/register?source=home"},
+            "/register", base_url="http://127.0.0.1:5000"
         ):
-            with lawweb.app.test_request_context(
-                "/register", base_url="http://127.0.0.1:5000"
-            ):
-                self.assertTrue(lawweb.same_local_origin(
-                    "http://localhost:5000/register?source=home", allow_path=True
-                ))
+            self.assertTrue(lawweb.same_local_origin(
+                "http://localhost:5000/register?source=home", allow_path=True
+            ))
+
+    def test_registration_accepts_equivalent_loopback_origin(self):
+        client = lawweb.app.test_client()
+        response = client.get("/register", base_url="http://127.0.0.1:5000")
+        self.assertEqual(response.status_code, 200)
+        match = re.search(r'name="csrf_token" value="([^"]+)"', response.get_data(as_text=True))
+        self.assertIsNotNone(match)
+        response = client.post(
+            "/register",
+            base_url="http://127.0.0.1:5000",
+            data={
+                "csrf_token": match.group(1), "username": "reader88",
+                "password": "another secure passphrase 2026",
+                "password_confirm": "another secure passphrase 2026",
+            },
+            headers={"Origin": "http://localhost:5000"},
+        )
+        self.assertEqual(response.status_code, 302)
 
     def test_account_delete_with_wrong_password_is_rejected_cleanly(self):
         self.assertEqual(self.login().status_code, 302)
