@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="theme-color" content="#172638">
+  <title>新規登録 — LawWeb</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+</head>
+<body class="auth-page">
+  <main class="auth-shell">
+    <section class="auth-card">
+      <a class="brand auth-brand" href="/" aria-label="LawWeb">
+        <span class="brand-mark">L<span>.</span></span>
+        <span class="brand-copy"><strong>LAW<span>WEB</span></strong><small>LAWGIT WORKSPACE</small></span>
+      </a>
+      <p class="eyebrow">CREATE A READER ACCOUNT</p>
+      <h1>新規登録</h1>
+      <p class="auth-description">登録後は自動的にログインします。すべてのアカウントは閲覧専用で、法令データの変更権限はありません。</p>
+      {% if error %}<div class="auth-alert" role="alert">{{ error }}</div>{% endif %}
+      <form method="post" action="{{ url_for('register_post') }}" class="auth-form" autocomplete="on">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label for="username">ユーザー名</label>
+        <input id="username" name="username" type="text" autocomplete="username" required minlength="3" maxlength="32" pattern="[A-Za-z0-9][A-Za-z0-9_.-]{2,31}" autocapitalize="none" spellcheck="false" value="{{ username }}">
+        <small class="auth-help">3〜32文字。英数字で始め、英数字・_・.・- を使用できます。</small>
+        <label for="password">パスワード</label>
+        <input id="password" name="password" type="password" autocomplete="new-password" required minlength="14" maxlength="1024">
+        <small class="auth-help">14文字以上。長く、推測されにくいものを設定してください。</small>
+        <label for="password_confirm">パスワード（確認）</label>
+        <input id="password_confirm" name="password_confirm" type="password" autocomplete="new-password" required minlength="14" maxlength="1024">
+        <button class="button button-primary auth-submit" type="submit">アカウントを作成 <span aria-hidden="true">→</span></button>
+      </form>
+      <p class="auth-switch">すでにアカウントを持っていますか？ <a href="{{ url_for('login') }}">ログイン</a></p>
+      <div class="auth-meta"><span>LOCAL ACCESS ONLY</span><span>READ-ONLY ACCOUNT</span></div>
+    </section>
+    <p class="auth-footnote"><a href="/">公開範囲の閲覧に戻る</a> · LawWeb</p>
+  </main>
+</body>
+</html>
