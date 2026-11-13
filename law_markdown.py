@@ -325,10 +325,64 @@ def _render_item(element: ET.Element, out: list[str], depth: int, marker: str = 
     _render_children(element, out, depth + 1, excluded)
 
 
+TOC_TITLE_TAGS = {
+    "TOCPart": ("PartTitle", "ArticleRange"),
+    "TOCChapter": ("ChapterTitle", "ArticleRange"),
+    "TOCSection": ("SectionTitle", "ArticleRange"),
+    "TOCSubsection": ("SubsectionTitle", "ArticleRange"),
+    "TOCDivision": ("DivisionTitle", "ArticleRange"),
+    "TOCArticle": ("ArticleTitle", "ArticleCaption"),
+    "TOCSupplProvision": ("SupplProvisionLabel", "ArticleRange"),
+}
+
+
+def _render_toc_item(element: ET.Element, out: list[str], depth: int) -> None:
+    tag = _tag(element)
+    title_tag, secondary_tag = TOC_TITLE_TAGS[tag]
+    title = _text(_first(element, title_tag))
+    secondary = _text(_first(element, secondary_tag))
+    text = _join_nonempty([title, secondary])
+    if not text:
+        text = _attr(element, "Num") or tag
+    out.append("  " * depth + "- " + text)
+    _render_children(element, out, depth + 1, {title_tag, secondary_tag})
+
+
+def _render_sublist(element: ET.Element, out: list[str], depth: int) -> None:
+    tag = _tag(element)
+    match = re.fullmatch(r"Sublist([1-3])", tag)
+    if not match:
+        _render_children(element, out, depth)
+        return
+    level = int(match.group(1))
+    sentence_tag = f"Sublist{level}Sentence"
+    sentence = _render_inline_container(_first(element, sentence_tag))
+    prefix = "  " * (depth + level - 1)
+    if sentence:
+        out.append(prefix + "- " + sentence)
+    _render_children(element, out, depth + 1, {sentence_tag})
+
+
 def _render_node(element: ET.Element, out: list[str], depth: int = 0) -> None:
     tag = _tag(element)
 
     if tag in SKIP_TITLE_TAGS or tag in {"LawNum", "LawTitle"}:
+        return
+
+    if tag == "TOC":
+        label = _text(_first(element, "TOCLabel")) or "目次"
+        out.extend(["", "## " + label, ""])
+        _render_children(element, out, depth + 1, {"TOCLabel"})
+        return
+
+    if tag in TOC_TITLE_TAGS:
+        _render_toc_item(element, out, depth)
+        return
+
+    if tag == "TOCAppdxTableLabel":
+        value = _render_inline_container(element)
+        if value:
+            out.append("  " * depth + "- " + value)
         return
 
     if tag == "MainProvision":
@@ -371,6 +425,20 @@ def _render_node(element: ET.Element, out: list[str], depth: int = 0) -> None:
 
     if tag == "TableStruct":
         _render_table(element, out, depth)
+        return
+
+    if tag == "List":
+        _render_children(element, out, depth + 1)
+        return
+
+    if tag == "ListSentence":
+        value = _render_inline_container(element)
+        if value:
+            out.append("  " * depth + "- " + value)
+        return
+
+    if re.fullmatch(r"Sublist[1-3]", tag):
+        _render_sublist(element, out, depth)
         return
 
     if tag == "Sentence":
