@@ -33,7 +33,8 @@ async function api(path) {
 function header(view) {
   const value = titles[view] || titles.overview;
   document.getElementById("page-title").textContent = value[0];
-  document.getElementById("breadcrumb-current").textContent = value[1];
+  const breadcrumb = document.getElementById("breadcrumb-current");
+  if (breadcrumb) breadcrumb.textContent = value[1];
   document.querySelectorAll(".nav-item").forEach(el => el.classList.toggle("active",el.dataset.view === view));
 }
 function empty(title, detail, symbol) {
