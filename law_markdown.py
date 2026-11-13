@@ -109,6 +109,20 @@ def _render_inline_container(element: ET.Element) -> str:
     parts: list[str] = []
 
     def visit(node: ET.Element) -> None:
+        if _tag(node) == "Ruby":
+            base_parts = [node.text or ""]
+            reading_parts = []
+            for child in list(node):
+                if _tag(child) == "Rt":
+                    reading_parts.append("".join(child.itertext()))
+                else:
+                    base_parts.append("".join(child.itertext()))
+                if child.tail:
+                    base_parts.append(child.tail)
+            base = "".join(base_parts).strip()
+            reading = "".join(reading_parts).strip()
+            parts.append(base + (f"（{reading}）" if reading else ""))
+            return
         if node.text:
             parts.append(node.text)
         for child in list(node):
@@ -118,6 +132,81 @@ def _render_inline_container(element: ET.Element) -> str:
 
     visit(element)
     return re.sub(r"[ \t\r\n]+", " ", "".join(parts)).strip()
+
+
+def _render_table_cell(element: ET.Element, header: bool = False) -> str:
+    value = _render_inline_container(element).replace("|", "\\|").replace("\\n", " ")
+    annotations = []
+    for key in ("rowspan", "colspan"):
+        if element.attrib.get(key):
+            annotations.append(f"{key}={element.attrib[key]}")
+    if annotations:
+        value += " 〔" + ", ".join(annotations) + "〕"
+    return value or " "
+
+
+def _render_table(element: ET.Element, out: list[str], depth: int = 0) -> None:
+    title = _text(_first(element, "TableStructTitle"))
+    remarks = _first(element, "Remarks")
+    table = _first(element, "Table")
+    if title:
+        out.extend(["", f"**{title}**", ""])
+    if table is None:
+        _render_children(element, out, depth, {"TableStructTitle"})
+        return
+
+    row_nodes = [
+        child for child in list(table)
+        if _tag(child) in {"TableHeaderRow", "TableRow"}
+    ]
+    if not row_nodes:
+        _render_children(element, out, depth, {"TableStructTitle", "Table"})
+        return
+
+    rows: list[tuple[bool, list[str]]] = []
+    max_columns = 0
+    for row in row_nodes:
+        header_row = _tag(row) == "TableHeaderRow"
+        column_tag = "TableHeaderColumn" if header_row else "TableColumn"
+        values = [
+            _render_table_cell(cell, header=header_row)
+            for cell in list(row) if _tag(cell) == column_tag
+        ]
+        max_columns = max(max_columns, len(values))
+        rows.append((header_row, values))
+
+    if max_columns == 0:
+        _render_children(element, out, depth, {"TableStructTitle", "Table"})
+        return
+
+    # Markdown cannot represent merged cells; rowspan/colspan are kept in the
+    # affected cell text so the structural information is not silently lost.
+    header_index = next((i for i, (is_header, _) in enumerate(rows) if is_header), None)
+    if header_index is not None:
+        header_values = rows[header_index][1]
+        data_rows = [row for i, row in enumerate(rows) if i != header_index]
+    else:
+        header_values = [f"列{i + 1}" for i in range(max_columns)]
+        data_rows = rows
+
+    header_values = (header_values + [" "] * max_columns)[:max_columns]
+    divider = ["---"] * max_columns
+
+    def markdown_row(values: list[str]) -> str:
+        values = (values + [" "] * max_columns)[:max_columns]
+        return "| " + " | ".join(values) + " |"
+
+    out.extend(["", markdown_row(header_values), markdown_row(divider)])
+    for _, values in data_rows:
+        out.append(markdown_row(values))
+
+    if remarks is not None:
+        remarks_text = _render_inline_container(remarks)
+        if remarks_text:
+            out.extend(["", "> 備考：" + remarks_text])
+
+    # Keep any non-table siblings from the TableStruct container.
+    _render_children(element, out, depth, {"TableStructTitle", "Table", "Remarks"})
 
 
 def _render_children(
@@ -271,6 +360,10 @@ def _render_node(element: ET.Element, out: list[str], depth: int = 0) -> None:
         _render_item(element, out, depth, marker="-")
         return
 
+    if tag == "TableStruct":
+        _render_table(element, out, depth)
+        return
+
     if tag == "Sentence":
         value = _render_inline_container(element)
         if value:
@@ -291,8 +384,12 @@ def _render_node(element: ET.Element, out: list[str], depth: int = 0) -> None:
     children = list(element)
     if not children:
         value = _render_inline_container(element)
+        attrs = _attributes(element)
         if value:
-            out.append("  " * depth + value)
+            if attrs:
+                out.append("  " * depth + f"**{tag}（{attrs}）** " + value)
+            else:
+                out.append("  " * depth + value)
         else:
             attrs = _attributes(element)
             if attrs:
