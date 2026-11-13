@@ -23,7 +23,7 @@
       <form method="post" action="{{ url_for('register_post') }}" class="auth-form" autocomplete="on">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <label for="username">ユーザー名</label>
-        <input id="username" name="username" type="text" autocomplete="username" required minlength="3" maxlength="32" pattern="[A-Za-z0-9][A-Za-z0-9_.-]{2,31}" autocapitalize="none" spellcheck="false" value="{{ username }}">
+        <input id="username" name="username" type="text" autocomplete="username" required minlength="3" maxlength="32" autocapitalize="none" spellcheck="false" value="{{ username }}">
         <small class="auth-help">3〜32文字。英数字で始め、英数字・_・.・- を使用できます。</small>
         <label for="password">パスワード</label>
         <input id="password" name="password" type="password" autocomplete="new-password" required minlength="14" maxlength="1024">
