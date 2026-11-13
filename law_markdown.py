@@ -293,7 +293,7 @@ def _render_node(element: ET.Element, out: list[str], depth: int = 0) -> None:
 
     # Unknown or auxiliary containers stay visible as labelled, nested sections.
     # Use only direct text here; itertext() would duplicate the child text below.
-    direct_text = re.sub(r"\\s+", " ", (element.text or "")).strip()
+    direct_text = re.sub(r"\s+", " ", (element.text or "")).strip()
     label = tag
     attrs = _attributes(element)
     if attrs:
