@@ -34,6 +34,30 @@ class LawWebSecurityTests(unittest.TestCase):
             headers={"Origin": "http://localhost"},
         )
 
+    def test_reset_accounts_removes_all_auth_records(self):
+        lawweb.create_user_record("reader02", "another secure passphrase 2026")
+        with lawweb.connect_db() as db:
+            db.execute(
+                "INSERT INTO auth_sessions(sid_hash,user_id,created_at,last_seen_at,expires_at) "
+                "VALUES(?,?,?,?,?)",
+                ("session-digest", 1, 1, 1, 9999999999),
+            )
+            db.execute(
+                "INSERT INTO login_limits(key_hash,window_started_at,failures,blocked_until) "
+                "VALUES(?,?,?,?)",
+                ("limit-digest", 1, 5, 9999999999),
+            )
+            db.commit()
+
+        result = lawweb.app.test_cli_runner().invoke(
+            args=["reset-accounts"], input="y\n"
+        )
+        self.assertEqual(result.exit_code, 0, result.output)
+        with lawweb.connect_db() as db:
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM users").fetchone()[0], 0)
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM auth_sessions").fetchone()[0], 0)
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM login_limits").fetchone()[0], 0)
+
     def test_public_home_is_available_without_login(self):
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
