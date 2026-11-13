@@ -275,10 +275,19 @@ def verify_csrf() -> bool:
 
     origin = request.headers.get("Origin")
     referer = request.headers.get("Referer")
-    source = origin if origin else referer
-    if source and not same_local_origin(source, allow_path=not bool(origin)):
-        g.csrf_failure_reason = "origin_mismatch"
-        return False
+
+    # Some browser configurations serialize an opaque document origin as "null".
+    # Never trust that value by itself: accept it only when the browser also marks
+    # the navigation as same-origin and the synchronizer token above matches.
+    if origin and origin.strip().lower() == "null":
+        if fetch_site != "same-origin":
+            g.csrf_failure_reason = "opaque_origin_without_same_origin_metadata"
+            return False
+    else:
+        source = origin if origin else referer
+        if source and not same_local_origin(source, allow_path=not bool(origin)):
+            g.csrf_failure_reason = "origin_mismatch"
+            return False
 
     return True
 
