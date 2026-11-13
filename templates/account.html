@@ -46,7 +46,7 @@
       </form>
 
       <h2 class="auth-section-title danger-heading">アカウント削除</h2>
-      <form method="post" action="{{ url_for('account_delete') }}" class="auth-form" onsubmit="return confirm('このアカウントを完全に削除しますか？');">
+      <form method="post" action="{{ url_for('account_delete') }}" class="auth-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <label for="delete_password">現在のパスワード</label>
         <input id="delete_password" name="password" type="password" autocomplete="current-password" required maxlength="1024">
