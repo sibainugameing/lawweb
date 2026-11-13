@@ -17,9 +17,8 @@
       </a>
       <p class="eyebrow">PRIVATE LEGAL DOCUMENT LIBRARY</p>
       <h1>ログイン</h1>
-      <p class="auth-description">LawWebの閲覧にはアカウント認証が必要です。アカウントは運用者がターミナルから発行します。</p>
+      <p class="auth-description">ログインすると、法令XML・ルール本文・変更履歴などの詳細を閲覧できます。</p>
       {% if error %}<div class="auth-alert" role="alert">{{ error }}</div>{% endif %}
-      {% if setup_message %}<div class="auth-notice">{{ setup_message }}</div>{% endif %}
       <form method="post" action="{{ url_for('login_post') }}" class="auth-form" autocomplete="on">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <label for="username">ユーザー名</label>
@@ -28,9 +27,10 @@
         <input id="password" name="password" type="password" autocomplete="current-password" required maxlength="1024">
         <button class="button button-primary auth-submit" type="submit">ログイン <span aria-hidden="true">→</span></button>
       </form>
-      <div class="auth-meta"><span>LOCAL ACCESS ONLY</span><span>NO PUBLIC SIGN-UP</span></div>
+      <p class="auth-switch">アカウントを持っていませんか？ <a href="{{ url_for('register') }}">新規登録</a></p>
+      <div class="auth-meta"><span>LOCAL ACCESS ONLY</span><span>READ-ONLY ACCOUNT</span></div>
     </section>
-    <p class="auth-footnote">LawWeb · Read-only interface for LawGit</p>
+    <p class="auth-footnote"><a href="/">公開範囲の閲覧に戻る</a> · LawWeb</p>
   </main>
 </body>
 </html>
