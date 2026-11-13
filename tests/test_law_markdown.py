@@ -75,6 +75,16 @@ class LawMarkdownTests(unittest.TestCase):
         self.assertIn("独自の見出し", markdown)
         self.assertIn("独自要素の本文", markdown)
 
+    def test_subitem_titles_and_sentences_are_preserved(self):
+        xml = SAMPLE.replace(
+            "</Paragraph>",
+            '<Subitem1><Subitem1Title>イ</Subitem1Title>'
+            '<Subitem1Sentence><Sentence>細目の本文。</Sentence></Subitem1Sentence></Subitem1></Paragraph>',
+            1,
+        )
+        markdown = law_xml_to_markdown(xml)
+        self.assertIn("- イ 細目の本文。", markdown)
+
     def test_escaped_entities_are_decoded_as_text(self):
         markdown = law_xml_to_markdown(SAMPLE)
         self.assertIn("<道路> & 交通", markdown)
