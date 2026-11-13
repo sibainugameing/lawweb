@@ -802,6 +802,8 @@ def public_get_law(uuid: str):
     # deliberately omit raw XML, repository paths, versions and Git internals.
     enriched = attach_law_markdown(result or {})
     law = enriched.get("law", {}) if isinstance(enriched, dict) else {}
+    if not isinstance(law, dict):
+        law = {}
     public_result = {"law": public_law_fields(law)}
     if isinstance(enriched, dict) and isinstance(enriched.get("markdown"), str):
         public_result["markdown"] = enriched["markdown"]
@@ -833,7 +835,7 @@ def public_search():
         if not isinstance(hit, dict) or hit.get("kind") != "law":
             continue
         uuid = hit.get("uuid", "")
-        if not valid_law_uuid(uuid):
+        if not isinstance(uuid, str) or not valid_law_uuid(uuid):
             continue
         hits.append({
             "kind": "law",
