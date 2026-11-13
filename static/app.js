@@ -868,14 +868,19 @@ async function search(query) {
     const data = await api(endpoint + "?q=" + encodeURIComponent(value) + "&limit=" + (IS_AUTHENTICATED ? "100" : "50"));
     const hits = (data.hits || []).filter(hit => IS_AUTHENTICATED || hit.kind === "law");
     const rows = hits.length ? '<div class="search-results">' + hits.map(hit => {
-      return '<article class="search-hit"><span class="document-symbol" aria-hidden="true">§</span>' +
-        '<div class="document-main"><button class="document-name table-link" type="button" data-action="law" data-uuid="' +
+      const kind = hit.kind === "law" ? "law" : "rule";
+      const label = kind === "law" ? "法令" : "ルール";
+      const symbol = kind === "law" ? "§" : "≡";
+      const openLabel = kind === "law" ? "本文を読む →" : "詳細を見る →";
+      return '<article class="search-hit"><span class="document-symbol" aria-hidden="true">' + symbol + '</span>' +
+        '<div class="document-main"><button class="document-name table-link" type="button" data-action="' + kind + '" data-uuid="' +
         esc(hit.uuid) + '">' + esc(hit.name || "名称未設定") + '</button>' +
-        '<div class="document-meta"><span class="pill neutral">法令</span>' +
+        '<div class="document-meta"><span class="pill neutral">' + label + '</span>' +
         (hit.matched ? '<span>一致箇所: ' + esc(hit.matched) + '</span>' : '') + '</div>' +
         '<p class="search-snippet">' + esc(hit.snippet || "") + '</p></div>' +
-        '<button class="search-open" type="button" data-action="law" data-uuid="' + esc(hit.uuid) + '">本文を読む →</button></article>';
-    }).join("") + '</div>' : emptyState("一致する法令はありません", "別の語句や法令番号で検索してください。", "⌕");
+        '<button class="search-open" type="button" data-action="' + kind + '" data-uuid="' + esc(hit.uuid) + '">' +
+        openLabel + '</button></article>';
+    }).join("") + '</div>' : emptyState("一致する文書はありません", "別の語句や法令番号で検索してください。", "⌕");
     const truncation = data.truncated ?
       '<p class="search-truncated">結果が多いため一部を表示しています。検索語を追加して絞り込んでください。</p>' : "";
     const guestHint = !IS_AUTHENTICATED ?
