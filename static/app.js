@@ -13,7 +13,14 @@ const state = {
   rulePage: 1,
   historyKind: "",
   historyUuid: "",
+  historyCommits: [],
+  diffOlder: "",
+  diffNewer: "",
+  currentRevision: "",
+  lawDisplayMode: "markdown",
+  revisionDisplayMode: "markdown",
   lastDetail: null,
+  lastRevisionData: null,
   lastSearch: ""
 };
 
@@ -133,6 +140,98 @@ function emptyState(title, detail, symbol) {
   return '<div class="empty-state"><div class="empty-mark" aria-hidden="true">' +
     esc(symbol || "—") + '</div><strong>' + esc(title) + '</strong><p>' +
     esc(detail || "") + '</p></div>';
+}
+
+function inlineMarkdown(value) {
+  let text = esc(value);
+  text = text.replace(/`([^`]+)`/g, "<code>$1</code>");
+  text = text.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  text = text.replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, "<em>$1</em>");
+  return text;
+}
+
+function markdownToHtml(markdown) {
+  const lines = String(markdown || "").replace(/\r\n?/g, "\n").split("\n");
+  const html = [];
+  let paragraph = [];
+  let code = [];
+  let inCode = false;
+
+  const flushParagraph = () => {
+    if (!paragraph.length) return;
+    html.push('<p class="md-paragraph">' + paragraph.map(inlineMarkdown).join("<br>") + "</p>");
+    paragraph = [];
+  };
+  const flushCode = () => {
+    html.push('<pre class="md-code"><code>' + esc(code.join("\n")) + "</code></pre>");
+    code = [];
+    inCode = false;
+  };
+
+  for (const line of lines) {
+    if (line.trimStart().startsWith("```")) {
+      flushParagraph();
+      if (inCode) flushCode();
+      else inCode = true;
+      continue;
+    }
+    if (inCode) {
+      code.push(line);
+      continue;
+    }
+    if (!line.trim()) {
+      flushParagraph();
+      continue;
+    }
+    const heading = line.match(/^(#{1,6})\s+(.+)$/);
+    if (heading) {
+      flushParagraph();
+      const level = heading[1].length;
+      html.push('<h' + level + ' class="md-heading md-heading-' + level + '">' + inlineMarkdown(heading[2]) + '</h' + level + '>');
+      continue;
+    }
+    if (/^\s*---+\s*$/.test(line)) {
+      flushParagraph();
+      html.push('<hr class="md-rule">');
+      continue;
+    }
+    const quote = line.match(/^>\s?(.*)$/);
+    if (quote) {
+      flushParagraph();
+      html.push('<blockquote class="md-quote">' + inlineMarkdown(quote[1]) + '</blockquote>');
+      continue;
+    }
+    const item = line.match(/^(\s*)(?:[-*+]\s+|\d+[.)]\s+)(.*)$/);
+    if (item) {
+      flushParagraph();
+      const depth = Math.min(4, Math.floor(item[1].length / 2));
+      const ordered = /^\s*\d+[.)]\s+/.test(line);
+      html.push('<div class="md-list-item md-list-depth-' + depth + '">' +
+        '<span class="md-list-marker">' + (ordered ? "•" : "•") + '</span>' +
+        '<span>' + inlineMarkdown(item[2]) + '</span></div>');
+      continue;
+    }
+    paragraph.push(line);
+  }
+  flushParagraph();
+  if (inCode) flushCode();
+  return html.join("");
+}
+
+function diffToHtml(diff) {
+  if (!diff) return emptyState("変更はありません", "選択した2つの版のMarkdown表示は同一です。", "=");
+  return '<div class="diff-view">' + String(diff).split("\n").map(line => {
+    let kind = "context";
+    if (line.startsWith("+++") || line.startsWith("---")) kind = "file";
+    else if (line.startsWith("@@")) kind = "hunk";
+    else if (line.startsWith("+")) kind = "added";
+    else if (line.startsWith("-")) kind = "removed";
+    const marker = line.slice(0, 1);
+    return '<div class="diff-line diff-' + kind + '"><span class="diff-marker">' +
+      esc(kind === "added" ? "+" : kind === "removed" ? "−" : kind === "hunk" ? "↳" : kind === "file" ? marker : " ") +
+      '</span><code>' + esc(kind === "added" || kind === "removed" || kind === "context" ? line.slice(1) : line) +
+      '</code></div>';
+  }).join("") + '</div>';
 }
 
 function statusRow(title, message, tone) {
