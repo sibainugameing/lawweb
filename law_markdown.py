@@ -82,7 +82,7 @@ def _text(element: ET.Element | None) -> str:
     if element is None:
         return ""
     value = "".join(element.itertext())
-    return re.sub(r"\s+", " ", value).strip()
+    return re.sub(r"[ \t\r\n]+", " ", value).strip()
 
 
 def _attr(element: ET.Element, name: str) -> str:
@@ -117,7 +117,7 @@ def _render_inline_container(element: ET.Element) -> str:
                 parts.append(child.tail)
 
     visit(element)
-    return re.sub(r"\s+", " ", "".join(parts)).strip()
+    return re.sub(r"[ \t\r\n]+", " ", "".join(parts)).strip()
 
 
 def _render_children(
@@ -129,14 +129,14 @@ def _render_children(
     excluded = excluded or set()
     leading_text = (element.text or "").strip()
     if leading_text:
-        out.append("  " * depth + leading_text)
+        out.append(leading_text)
     for child in list(element):
         if _tag(child) not in excluded:
             _render_node(child, out, depth)
         # XML mixed-content text can live in a child's tail; retain it too.
         tail = (child.tail or "").strip()
         if tail:
-            out.append("  " * depth + tail)
+            out.append(tail)
 
 
 def _render_heading(
@@ -180,7 +180,7 @@ def _render_paragraph(element: ET.Element, out: list[str], depth: int) -> None:
         text for text in (_render_inline_container(node) for node in sentence_nodes)
         if text
     )
-    prefix = "  " * depth
+    prefix = ""
     if sentence:
         marker = f"{number}. " if number else ""
         out.append(prefix + marker + sentence)
@@ -211,7 +211,7 @@ def _render_item(element: ET.Element, out: list[str], depth: int, marker: str = 
         sentence = _text(_first(element, "Sentence"))
     content = _join_nonempty([title, sentence], " ")
     number = _number(element)
-    prefix = "  " * depth
+    prefix = "  " * max(0, depth - 4)
     if number:
         out.append(f"{prefix}{number}. {content}".rstrip())
     elif content:
@@ -266,7 +266,7 @@ def _render_node(element: ET.Element, out: list[str], depth: int = 0) -> None:
     if tag == "Sentence":
         value = _render_inline_container(element)
         if value:
-            out.append("  " * depth + value)
+            out.append(value)
         return
 
     if tag in APPENDIX_TAGS:
@@ -293,13 +293,13 @@ def _render_node(element: ET.Element, out: list[str], depth: int = 0) -> None:
 
     # Unknown or auxiliary containers stay visible as labelled, nested sections.
     # Use only direct text here; itertext() would duplicate the child text below.
-    direct_text = re.sub(r"\s+", " ", (element.text or "")).strip()
+    direct_text = re.sub(r"[ \t\r\n]+", " ", (element.text or "")).strip()
     label = tag
     attrs = _attributes(element)
     if attrs:
         label += f"（{attrs}）"
     if direct_text:
-        out.extend(["", "  " * depth + f"**{label}**", ""])
+        out.extend(["", f"**{label}**", ""])
     elif tag not in KNOWN_WRAPPERS:
         out.extend(["", "  " * depth + f"**{label}**", ""])
     _render_children(element, out, depth + 1)
