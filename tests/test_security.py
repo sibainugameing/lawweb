@@ -294,6 +294,37 @@ class LawWebSecurityTests(unittest.TestCase):
             "/login", environ_base={"REMOTE_ADDR": "192.0.2.10"}
         )
         self.assertEqual(response.status_code, 403)
+        self.assertIn("同じPCからのローカル接続専用", response.get_data(as_text=True))
+        self.assertNotIn("入力内容は送信されていません", response.get_data(as_text=True))
+
+    def test_local_referer_with_form_path_is_accepted(self):
+        with lawweb.app.test_request_context(
+            "/register", base_url="http://127.0.0.1:5000",
+            headers={"Referer": "http://localhost:5000/register?source=home"},
+        ):
+            with lawweb.app.test_request_context(
+                "/register", base_url="http://127.0.0.1:5000"
+            ):
+                self.assertTrue(lawweb.same_local_origin(
+                    "http://localhost:5000/register?source=home", allow_path=True
+                ))
+
+    def test_account_delete_with_wrong_password_is_rejected_cleanly(self):
+        self.assertEqual(self.login().status_code, 302)
+        token = self.csrf("/account")
+        response = self.client.post(
+            "/account/delete",
+            data={
+                "csrf_token": token,
+                "password": "incorrect password",
+                "confirmation": "DELETE",
+            },
+            headers={"Origin": "http://localhost"},
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("パスワードが正しくありません", response.get_data(as_text=True))
+        with lawweb.connect_db() as db:
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM users").fetchone()[0], 1)
 
     def test_security_headers_are_present(self):
         response = self.client.get("/login")
