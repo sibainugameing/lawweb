@@ -150,7 +150,7 @@ function inlineMarkdown(value) {
   return text;
 }
 
-function markdownToHtml(markdown) {
+function markdownToHtml(markdown, hideDocumentTitle = false) {
   const lines = String(markdown || "").replace(/\r\n?/g, "\n").split("\n");
   const html = [];
   let paragraph = [];
@@ -187,7 +187,9 @@ function markdownToHtml(markdown) {
     if (heading) {
       flushParagraph();
       const level = heading[1].length;
-      html.push('<h' + level + ' class="md-heading md-heading-' + level + '">' + inlineMarkdown(heading[2]) + '</h' + level + '>');
+      if (!(hideDocumentTitle && level === 1 && !html.some(part => part.includes("md-heading-1")))) {
+        html.push('<h' + level + ' class="md-heading md-heading-' + level + '">' + inlineMarkdown(heading[2]) + '</h' + level + '>');
+      }
       continue;
     }
     if (/^\s*---+\s*$/.test(line)) {
@@ -222,7 +224,7 @@ function diffToHtml(diff) {
   if (!diff) return emptyState("変更はありません", "選択した2つの版のMarkdown表示は同一です。", "=");
   return '<div class="diff-view">' + String(diff).split("\n").map(line => {
     let kind = "context";
-    if (line.startsWith("+++") || line.startsWith("---")) kind = "file";
+    if (line.startsWith("+++ ") || line.startsWith("--- ")) kind = "file";
     else if (line.startsWith("@@")) kind = "hunk";
     else if (line.startsWith("+")) kind = "added";
     else if (line.startsWith("-")) kind = "removed";
@@ -514,7 +516,7 @@ function renderLaw(data) {
     if (mode === "xml") {
       content = '<pre class="source-content">' + esc(data.xml || "XMLデータがありません。") + '</pre>';
     } else if (data.markdown) {
-      content = '<article class="markdown-document">' + markdownToHtml(data.markdown) + '</article>';
+      content = '<article class="markdown-document">' + markdownToHtml(data.markdown, true) + '</article>';
     } else {
       content = '<div class="reader-error">' + esc(data.markdown_error || "Markdownに変換できませんでした。XML原文を確認してください。") + '</div>' +
         '<pre class="source-content">' + esc(data.xml || "XMLデータがありません。") + '</pre>';
