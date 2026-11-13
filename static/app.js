@@ -141,8 +141,10 @@ function statusRow(title, message, tone) {
 }
 
 function metric(label, value, foot) {
+  const display = typeof value === "number" ? formatNumber(value) :
+    (value === null || value === undefined || value === "" ? "—" : String(value));
   return '<article class="metric-card"><div class="metric-label">' + esc(label) +
-    '</div><div class="metric-value">' + esc(formatNumber(value)) +
+    '</div><div class="metric-value">' + esc(display) +
     '</div><div class="metric-foot">' + esc(foot || "") + '</div></article>';
 }
 
