@@ -127,6 +127,9 @@ def _render_children(
     excluded: set[str] | None = None,
 ) -> None:
     excluded = excluded or set()
+    leading_text = (element.text or "").strip()
+    if leading_text:
+        out.append("  " * depth + leading_text)
     for child in list(element):
         if _tag(child) not in excluded:
             _render_node(child, out, depth)
@@ -238,7 +241,7 @@ def _render_node(element: ET.Element, out: list[str], depth: int = 0) -> None:
 
     if tag == "SupplProvision":
         label = _text(_first(element, "SupplProvisionLabel", "SupplProvisionTitle"))
-        heading = "附則" + (f"（{label}）" if label and label != "附則" else "")
+        heading = label if label.startswith("附則") else ("附則" + (f"　{label}" if label else ""))
         out.extend(["", "## " + heading, ""])
         _render_children(element, out, depth + 1, {"SupplProvisionLabel", "SupplProvisionTitle"})
         return
