@@ -75,6 +75,67 @@ class LawMarkdownTests(unittest.TestCase):
         self.assertIn("独自の見出し", markdown)
         self.assertIn("独自要素の本文", markdown)
 
+    def test_ruby_is_rendered_as_base_text_and_reading(self):
+        xml = SAMPLE.replace(
+            "この法律は、&lt;道路&gt; &amp; 交通の安全を図る。",
+            "この法律は、<Ruby>道路<Rt>どうろ</Rt></Ruby>の安全を図る。",
+        )
+        markdown = law_xml_to_markdown(xml)
+        self.assertIn("この法律は、道路（どうろ）の安全を図る。", markdown)
+
+    def test_table_struct_is_rendered_as_markdown_table(self):
+        table = """<TableStruct>
+        <TableStructTitle>別表第一　分類</TableStructTitle>
+        <Table WritingMode="vertical">
+          <TableHeaderRow><TableHeaderColumn>区分</TableHeaderColumn><TableHeaderColumn>内容</TableHeaderColumn></TableHeaderRow>
+          <TableRow><TableColumn>一</TableColumn><TableColumn rowspan="2">第一欄</TableColumn></TableRow>
+          <TableRow><TableColumn>二</TableColumn><TableColumn>第二欄</TableColumn></TableRow>
+        </Table></TableStruct>"""
+        xml = SAMPLE.replace("</MainProvision>", table + "</MainProvision>")
+        markdown = law_xml_to_markdown(xml)
+        self.assertIn("**別表第一　分類**", markdown)
+        self.assertIn("| 区分 | 内容 |", markdown)
+        self.assertIn("| 一 | 第一欄 〔rowspan=2〕 |", markdown)
+        self.assertIn("元XMLは縦書き指定", markdown)
+
+    def test_table_without_header_gets_column_labels(self):
+        table = """<TableStruct><Table><TableRow><TableColumn>値A</TableColumn>
+        <TableColumn>値B</TableColumn></TableRow></Table></TableStruct>"""
+        xml = SAMPLE.replace("</MainProvision>", table + "</MainProvision>")
+        markdown = law_xml_to_markdown(xml)
+        self.assertIn("| 列1 | 列2 |", markdown)
+        self.assertIn("| 値A | 値B |", markdown)
+
+    def test_table_pipe_characters_are_escaped(self):
+        table = """<TableStruct><Table><TableRow><TableColumn>A|B</TableColumn>
+        <TableColumn>C</TableColumn></TableRow></Table></TableStruct>"""
+        xml = SAMPLE.replace("</MainProvision>", table + "</MainProvision>")
+        markdown = law_xml_to_markdown(xml)
+        self.assertIn("A\\\\|B", markdown)
+
+    def test_table_and_toc_nested_structure_are_rendered(self):
+        toc = """<TOC><TOCLabel>目次</TOCLabel>
+        <TOCChapter Num="1"><ChapterTitle>第一章　総則</ChapterTitle>
+        <ArticleRange>（第一条―第三条）</ArticleRange>
+        <TOCArticle Num="1"><ArticleTitle>第一条</ArticleTitle>
+        <ArticleCaption>（目的）</ArticleCaption></TOCArticle></TOCChapter></TOC>"""
+        xml = SAMPLE.replace("<MainProvision>", toc + "<MainProvision>")
+        markdown = law_xml_to_markdown(xml)
+        self.assertIn("## 目次", markdown)
+        self.assertIn("- 第一章　総則　（第一条―第三条）", markdown)
+        self.assertIn("- 第一条　（目的）", markdown)
+
+    def test_legal_list_and_sublist_are_rendered_as_nested_lists(self):
+        legal_list = """<List><ListSentence><Sentence>次に掲げる事項。</Sentence></ListSentence>
+        <Sublist1><Sublist1Sentence><Sentence>第一の細目。</Sentence></Sublist1Sentence>
+        <Sublist2><Sublist2Sentence><Sentence>さらに下位の細目。</Sentence></Sublist2Sentence></Sublist2>
+        </Sublist1></List>"""
+        xml = SAMPLE.replace("</MainProvision>", legal_list + "</MainProvision>")
+        markdown = law_xml_to_markdown(xml)
+        self.assertIn("- 次に掲げる事項。", markdown)
+        self.assertIn("  - 第一の細目。", markdown)
+        self.assertIn("    - さらに下位の細目。", markdown)
+
     def test_subitem_titles_and_sentences_are_preserved(self):
         xml = SAMPLE.replace(
             "</Paragraph>",
