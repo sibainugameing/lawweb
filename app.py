@@ -309,11 +309,14 @@ def authenticated_user() -> dict[str, Any] | None:
 def require_loopback() -> None:
     host = (urlsplit("//" + request.host).hostname or "").lower()
     if host not in {"127.0.0.1", "localhost", "::1"}:
+        g.security_failure_reason = "host_not_allowed"
         abort(403)
     try:
         if not ipaddress.ip_address(request.remote_addr or "").is_loopback:
+            g.security_failure_reason = "remote_not_loopback"
             abort(403)
     except ValueError:
+        g.security_failure_reason = "remote_not_loopback"
         abort(403)
 
 
@@ -854,7 +857,18 @@ def validate():
 def forbidden(_error):
     if request.path.startswith("/api/"):
         return jsonify({"ok": False, "error": "この操作は許可されていません。"}), 403
-    message = "セキュリティ検証に失敗しました。入力内容は送信されていません。フォームページを開き直して再試行してください。"
+    reason = getattr(g, "security_failure_reason", "")
+    if reason in {"host_not_allowed", "remote_not_loopback"}:
+        message = (
+            "このLawWebは同じPCからのローカル接続専用です。"
+            "アクセスURLを http://127.0.0.1:5000 または http://localhost:5000 にしてください。"
+            "別のPCからのLAN接続はこの構成では許可されていません。"
+        )
+    else:
+        message = (
+            "セキュリティ検証に失敗しました。入力内容は送信されていません。"
+            "同じブラウザーでフォームページを開き直して再試行してください。"
+        )
     if request.path == "/register":
         return render_template("register.html", error=message, username=request.form.get("username", "")[:32]), 403
     if request.path.startswith("/account") and getattr(g, "user", None):
