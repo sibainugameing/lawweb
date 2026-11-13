@@ -156,6 +156,7 @@ function markdownToHtml(markdown, hideDocumentTitle = false) {
   let paragraph = [];
   let code = [];
   let inCode = false;
+  let documentTitleSkipped = false;
 
   const flushParagraph = () => {
     if (!paragraph.length) return;
@@ -187,9 +188,11 @@ function markdownToHtml(markdown, hideDocumentTitle = false) {
     if (heading) {
       flushParagraph();
       const level = heading[1].length;
-      if (!(hideDocumentTitle && level === 1 && !html.some(part => part.includes("md-heading-1")))) {
-        html.push('<h' + level + ' class="md-heading md-heading-' + level + '">' + inlineMarkdown(heading[2]) + '</h' + level + '>');
+      if (hideDocumentTitle && level === 1 && !documentTitleSkipped) {
+        documentTitleSkipped = true;
+        continue;
       }
+      html.push('<h' + level + ' class="md-heading md-heading-' + level + '">' + inlineMarkdown(heading[2]) + '</h' + level + '>');
       continue;
     }
     if (/^\s*---+\s*$/.test(line)) {
