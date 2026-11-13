@@ -315,17 +315,48 @@ def authenticated_user() -> dict[str, Any] | None:
         return {"id": int(row["user_id"]), "username": str(row["username"])}
 
 
-def require_loopback() -> None:
-    host = (urlsplit("//" + request.host).hostname or "").lower()
-    if host not in {"127.0.0.1", "localhost", "::1"}:
-        g.security_failure_reason = "host_not_allowed"
-        abort(403)
+PRIVATE_IPV4_NETWORKS = tuple(
+    ipaddress.ip_network(value)
+    for value in ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16")
+)
+PRIVATE_IPV6_NETWORKS = (ipaddress.ip_network("fc00::/7"),)
+
+
+def is_local_network_ip(value: str) -> bool:
+    """Allow loopback and RFC1918/IPv6 ULA addresses only."""
     try:
-        if not ipaddress.ip_address(request.remote_addr or "").is_loopback:
-            g.security_failure_reason = "remote_not_loopback"
-            abort(403)
+        address = ipaddress.ip_address(value)
     except ValueError:
-        g.security_failure_reason = "remote_not_loopback"
+        return False
+    if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped:
+        address = address.ipv4_mapped
+    if address.is_loopback:
+        return True
+    networks = PRIVATE_IPV4_NETWORKS if address.version == 4 else PRIVATE_IPV6_NETWORKS
+    return any(address in network for network in networks)
+
+
+def is_local_network_host(value: str) -> bool:
+    """Allow loopback/private IP hosts and valid multicast-DNS .local names."""
+    host = (value or "").lower().rstrip(".")
+    if host == "localhost" or is_local_network_ip(host):
+        return True
+    if not host.endswith(".local"):
+        return False
+    labels = host.split(".")
+    return len(labels) >= 2 and all(
+        re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", label)
+        for label in labels
+    )
+
+
+def require_local_network() -> None:
+    host = (urlsplit("//" + request.host).hostname or "").lower()
+    if not is_local_network_host(host):
+        g.security_failure_reason = "host_not_local_network"
+        abort(403)
+    if not is_local_network_ip(request.remote_addr or ""):
+        g.security_failure_reason = "remote_not_local_network"
         abort(403)
 
 
@@ -341,7 +372,7 @@ app.config.update(
     SESSION_COOKIE_PATH="/",
     PERMANENT_SESSION_LIFETIME=timedelta(hours=SESSION_HOURS),
     SESSION_REFRESH_EACH_REQUEST=False,
-    TRUSTED_HOSTS=["127.0.0.1", "localhost", "::1"],
+    TRUSTED_HOSTS=None,
 )
 
 API_ORIGIN = os.environ.get("LAWGIT_API_URL", "http://127.0.0.1:8787").rstrip("/")
@@ -356,7 +387,7 @@ init_database()
 
 @app.before_request
 def security_gate():
-    require_loopback()
+    require_local_network()
     if request.path.startswith("/static/"):
         return None
 
@@ -871,11 +902,11 @@ def forbidden(_error):
     if request.path.startswith("/api/"):
         return jsonify({"ok": False, "error": "この操作は許可されていません。"}), 403
     reason = getattr(g, "security_failure_reason", "")
-    if reason in {"host_not_allowed", "remote_not_loopback"}:
+    if reason in {"host_not_local_network", "remote_not_local_network"}:
         message = (
-            "このLawWebは同じPCからのローカル接続専用です。"
-            "アクセスURLを http://127.0.0.1:5000 または http://localhost:5000 にしてください。"
-            "別のPCからのLAN接続はこの構成では許可されていません。"
+            "LawWebは同じPCまたは同じプライベートネットワークからのみアクセスできます。"
+            "PCのLAN内IPアドレスまたは .local 名でアクセスしてください。"
+            "公開IPアドレスやインターネット経由の接続は許可されていません。"
         )
     else:
         csrf_reason = getattr(g, "csrf_failure_reason", "")
@@ -977,5 +1008,8 @@ def reset_login_limits_command():
     click.echo("ログイン試行制限をすべて解除しました。")
 
 
-if os.environ.get("WEB_HOST", "127.0.0.1") != "127.0.0.1":
-    raise RuntimeError("LawWebは安全のため127.0.0.1でのみ待ち受けます。")
+WEB_HOST = os.environ.get("WEB_HOST", "0.0.0.0").strip()
+if WEB_HOST != "0.0.0.0" and not is_local_network_ip(WEB_HOST):
+    raise RuntimeError(
+        "WEB_HOSTは0.0.0.0、ループバック、またはプライベートネットワークのIPを指定してください。"
+    )
