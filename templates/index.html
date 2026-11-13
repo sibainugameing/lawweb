@@ -8,20 +8,22 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
   <script src="{{ url_for('static', filename='app.js') }}" defer></script>
 </head>
-<body>
+<body data-authenticated="{{ 'true' if current_user else 'false' }}">
   <div class="app-shell">
     <aside class="sidebar">
       <a class="brand" href="/" aria-label="LawWeb ホーム">
         <span class="brand-mark">L<span>.</span></span>
         <span class="brand-copy"><strong>LAW<span>WEB</span></strong><small>LAWGIT WORKSPACE</small></span>
       </a>
-      <div class="workspace-label">READ-ONLY WORKSPACE</div>
+      <div class="workspace-label">{% if current_user %}READ-ONLY WORKSPACE{% else %}PUBLIC LIBRARY{% endif %}</div>
       <nav class="main-nav" aria-label="メインメニュー">
         <button class="nav-item active" data-view="overview"><span class="nav-icon">◫</span><span>概要</span><kbd>01</kbd></button>
         <button class="nav-item" data-view="laws"><span class="nav-icon">▤</span><span>法令</span><kbd>02</kbd></button>
+        {% if current_user %}
         <button class="nav-item" data-view="rules"><span class="nav-icon">≡</span><span>ルール</span><kbd>03</kbd></button>
         <button class="nav-item" data-view="activity"><span class="nav-icon">↗</span><span>変更履歴</span><kbd>04</kbd></button>
         <button class="nav-item" data-view="integrity"><span class="nav-icon">◇</span><span>検証・Git</span><kbd>05</kbd></button>
+        {% endif %}
       </nav>
       <div class="sidebar-bottom">
         <div class="connection-card">
@@ -29,9 +31,10 @@
           <p id="sidebar-repo">LawGit API</p>
           <div class="connection-foot"><span>LOCAL SERVICE</span><span class="pulse"></span></div>
         </div>
-        <div class="sidebar-footer"><span>LAW<span>WEB</span> <b>v0.2</b></span><span>READ ONLY</span></div>
+        <div class="sidebar-footer"><span>LAW<span>WEB</span> <b>v0.3</b></span><span>{% if current_user %}SIGNED IN{% else %}GUEST{% endif %}</span></div>
       </div>
     </aside>
+
     <main class="main">
       <header class="topbar">
         <div class="page-heading">
@@ -39,23 +42,30 @@
           <h1 id="page-title">概要</h1>
         </div>
         <div class="topbar-actions">
+          {% if current_user %}
           <form class="global-search" id="search-form" role="search">
             <span class="search-symbol">⌕</span>
             <input id="global-search" type="search" placeholder="法令・ルールを検索…" autocomplete="off" aria-label="法令・ルールを検索">
             <kbd>↵</kbd>
           </form>
+          {% endif %}
           <button class="icon-button" id="refresh-button" title="再読み込み" aria-label="再読み込み">↻</button>
+          {% if current_user %}
           <span class="user-pill">{{ current_user.username }}</span>
           <form method="post" action="{{ url_for('logout') }}" class="logout-form">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <button class="button button-secondary logout-button" type="submit">ログアウト</button>
           </form>
+          {% else %}
+          <a class="button button-secondary" href="{{ url_for('login') }}">ログイン</a>
+          <a class="button button-primary" href="{{ url_for('register') }}">新規登録</a>
+          {% endif %}
         </div>
       </header>
       <div class="content" id="view-root" aria-live="polite">
         <div class="loading-state"><span class="loader"></span><p>LawGitに接続しています…</p></div>
       </div>
-      <footer class="main-footer"><span>LEGAL DOCUMENT VIEWER</span><span>READ ONLY · POWERED BY LAWGIT</span></footer>
+      <footer class="main-footer"><span>LEGAL DOCUMENT VIEWER</span><span>{% if current_user %}READ ONLY · POWERED BY LAWGIT{% else %}PUBLIC VIEW · SIGN IN FOR FULL DETAILS{% endif %}</span></footer>
     </main>
   </div>
 </body>
