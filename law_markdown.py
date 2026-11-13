@@ -137,7 +137,10 @@ def _render_inline_container(element: ET.Element) -> str:
 def _render_table_cell(element: ET.Element, header: bool = False) -> str:
     value = _render_inline_container(element).replace("|", "\\|").replace("\\n", " ")
     annotations = []
-    for key in ("rowspan", "colspan"):
+    for key in (
+        "rowspan", "colspan", "Align", "Valign",
+        "BorderTop", "BorderBottom", "BorderLeft", "BorderRight",
+    ):
         if element.attrib.get(key):
             annotations.append(f"{key}={element.attrib[key]}")
     if annotations:
@@ -196,7 +199,7 @@ def _render_table(element: ET.Element, out: list[str], depth: int = 0) -> None:
         values = (values + [" "] * max_columns)[:max_columns]
         return "| " + " | ".join(values) + " |"
 
-    writing_mode = _attr(table, "WritingMode")
+    writing_mode = _attr(table, "WritingMode") or "vertical"
     if writing_mode == "vertical":
         out.extend(["", "> 元XMLは縦書き指定です。Markdownでは横方向に整形して表示します。"])
     out.extend(["", markdown_row(header_values), markdown_row(divider)])
