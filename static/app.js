@@ -1,5 +1,6 @@
 const state = {view:"overview",laws:[],rules:[],historyKind:"",historyUuid:""};
 const root = document.getElementById("view-root");
+const IS_AUTHENTICATED = document.body.dataset.authenticated === "true";
 const titles = {
   overview:["概要","OVERVIEW"], laws:["法令","LEGAL DOCUMENTS"],
   rules:["ルール","USER RULES"], activity:["変更履歴","ACTIVITY"],
@@ -48,7 +49,7 @@ function lawRows(items, limit) {
   if (!laws.length) return empty("法令がありません","法令データが登録されると、ここに表示されます。","▤");
   return laws.map(law =>
     '<div class="data-row"><div class="doc-icon">法</div><div class="row-main">'+
-    '<button class="table-link row-title" data-action="open-law" data-uuid="'+esc(law.uuid)+'">'+esc(law.name || "名称未設定")+'</button>'+
+    '<button class="table-link row-title" data-action="law" data-uuid="'+esc(law.uuid)+'">'+esc(law.name || "名称未設定")+'</button>'+
     '<div class="row-meta"><span>'+esc(law.type || "種別未設定")+'</span><span>·</span><span>'+esc(law.law_number || law.e_gov_id || "番号なし")+'</span></div>'+
     '</div><span class="row-end">'+esc(law.category || "未分類")+'</span></div>'
   ).join("");
@@ -58,7 +59,7 @@ function ruleRows(items, limit) {
   if (!rules.length) return empty("ルールがありません","LawGitに登録されたルールがここに表示されます。","≡");
   return rules.map(rule =>
     '<div class="data-row"><div class="doc-icon">R</div><div class="row-main">'+
-    '<button class="table-link row-title" data-action="open-rule" data-uuid="'+esc(rule.uuid)+'">'+esc(rule.name || "名称未設定")+'</button>'+
+    '<button class="table-link row-title" data-action="rule" data-uuid="'+esc(rule.uuid)+'">'+esc(rule.name || "名称未設定")+'</button>'+
     '<div class="row-meta"><span>'+esc(rule.category || "general")+'</span><span>·</span><span class="mono">'+esc(hash(rule.uuid))+'</span></div>'+
     '</div><span class="row-end">'+esc(rule.created || "—")+'</span></div>'
   ).join("");
@@ -94,8 +95,24 @@ function offline(message) {
 async function loadOverview() {
   root.innerHTML='<div class="loading-state"><span class="loader"></span><p>LawGitの状態を読み込んでいます…</p></div>';
   try {
-    const data=await api("overview");
+    const data=await api(IS_AUTHENTICATED ? "overview" : "public/overview");
     if (!data.connected) { offline(data.error); return; }
+    if (!IS_AUTHENTICATED) {
+      const publicLaws=data.laws?.laws || [];
+      const publicCats=data.categories?.laws || [];
+      const publicCategoryChips=publicCats.slice(0,8).map(c=>'<span class="category-chip">'+esc(c.category || "未分類")+'<b>'+esc(c.count)+'</b></span>').join("");
+      const publicErrors=Object.keys(data.errors || {});
+      connection(true,"LawGitに接続済み","公開ライブラリ");
+      root.innerHTML=
+        '<div class="page-intro"><div><p class="eyebrow">PUBLIC LEGAL LIBRARY</p><p>法令の基本情報を公開しています。法令XMLの全文、ルール、変更履歴などの詳細機能はログイン後に利用できます。</p></div><span class="tag neutral">PUBLIC VIEW</span></div>'+
+        '<div class="status-banner"><span class="status-dot online"></span><div><strong>公開閲覧モード</strong><p>'+esc(data.ping?.name || "LawGit")+' · v'+esc(data.ping?.version || "—")+'</p></div><span class="row-end connection-local">READ ONLY</span></div>'+
+        (publicErrors.length?'<div class="notice notice-spaced">一部の情報を取得できませんでした: '+esc(publicErrors.join("、"))+'</div>':"")+
+        '<div class="stats-grid"><div class="stat-card"><div class="stat-top"><span>公開法令</span><span class="stat-mark">§</span></div><div class="stat-value">'+publicLaws.length.toLocaleString("ja-JP")+'</div><div class="stat-note">LawGit / laws</div></div>'+
+        '<div class="stat-card"><div class="stat-top"><span>カテゴリ</span><span class="stat-mark">▦</span></div><div class="stat-value">'+publicCats.length.toLocaleString("ja-JP")+'</div><div class="stat-note">法令の分類</div></div></div>'+
+        '<section class="panel">'+panelTitle("法令ライブラリ","公開中の法令基本情報","go-laws","法令一覧を見る")+'<div class="panel-body">'+lawRows(publicLaws,8)+'</div></section>'+
+        '<section class="panel public-access-panel"><div class="panel-head"><div><h3 class="panel-title">ログインすると利用できる機能</h3><p class="panel-subtitle">詳細な文書情報と履歴へのアクセス</p></div></div><div class="panel-body"><div class="public-feature-grid"><span>法令XML全文</span><span>ルール本文</span><span>改正・変更履歴</span><span>Git履歴・検証</span><span>横断検索</span></div><p class="public-access-link"><a class="button button-primary" href="/register">アカウントを作成</a> <a class="button button-secondary" href="/login">ログイン</a></p></div></section>';
+      return;
+    }
     const laws=data.laws?.laws || [], rules=data.rules?.rules || [];
     const lawCats=data.categories?.laws || [], ruleCats=data.categories?.rules || [];
     const commits=data.log?.commits || [], ping=data.ping || {};
@@ -120,14 +137,14 @@ async function loadOverview() {
 }
 async function loadLaws() {
   root.innerHTML='<div class="loading-state"><span class="loader"></span><p>法令を読み込んでいます…</p></div>';
-  try { const result=await api("laws"); state.laws=result.laws || []; renderLaws(); }
+  try { const result=await api(IS_AUTHENTICATED ? "laws" : "public/laws"); state.laws=result.laws || []; renderLaws(); }
   catch(e) { renderError(e); }
 }
 function renderLaws() {
   header("laws");
   const laws=state.laws;
   root.innerHTML=
-    '<div class="page-intro"><div><p class="eyebrow">LEGAL DOCUMENTS</p><p>LawGitに登録された法令を検索・参照します。XML原文、識別子、改正履歴を閲覧できます。</p></div><span class="tag neutral">READ ONLY</span></div>'+
+    '<div class="page-intro"><div><p class="eyebrow">LEGAL DOCUMENTS</p><p>'+(IS_AUTHENTICATED?'法令の基本情報、XML原文、識別子、改正履歴を閲覧できます。':'法令の基本情報を閲覧できます。XML全文と改正履歴はログイン後に表示されます。')+'</p></div><span class="tag neutral">'+(IS_AUTHENTICATED?'READ ONLY':'PUBLIC VIEW')+'</span></div>'+
     '<div class="section-toolbar"><h2>法令一覧 <span class="muted small">('+laws.length+')</span></h2><div class="filter-bar"><input class="field" id="law-filter" placeholder="法令名・番号で絞り込み…" aria-label="法令一覧を絞り込み"><select class="select-field" id="law-type"><option value="">すべての種別</option><option>法律</option><option>政令</option><option>省令</option><option>規則</option><option>条例</option></select></div></div>'+
     '<section class="panel"><div class="table-wrap"><table class="data-table"><thead><tr><th>法令名</th><th>種別</th><th>法令番号</th><th>カテゴリ</th><th>UUID</th></tr></thead><tbody id="law-table">'+
     laws.map(law=>'<tr data-q="'+esc([law.name,law.law_number,law.e_gov_id,law.uuid,law.category].join(" ").toLowerCase())+'" data-type="'+esc(law.type || "")+'"><td><button class="table-link table-primary" data-action="law" data-uuid="'+esc(law.uuid)+'">'+esc(law.name || "名称未設定")+'</button></td><td><span class="tag neutral">'+esc(law.type || "—")+'</span></td><td>'+esc(law.law_number || "—")+'</td><td>'+esc(law.category || "未分類")+'</td><td class="mono small">'+esc(hash(law.uuid))+'</td></tr>').join("")+
@@ -139,11 +156,21 @@ function renderLaws() {
 async function openLaw(uuid) {
   state.view="laws";
   root.innerHTML='<div class="loading-state"><span class="loader"></span><p>法令の詳細を読み込んでいます…</p></div>';
-  try {const data=await api("laws/"+encodeURIComponent(uuid));state.selected={kind:"law",uuid,data};renderLaw(data);}
+  try {const data=await api((IS_AUTHENTICATED?"laws/":"public/laws/")+encodeURIComponent(uuid));state.selected={kind:"law",uuid,data};renderLaw(data);}
   catch(e){renderError(e);}
 }
 function renderLaw(data) {
-  const law=data.law || {}; header("laws");
+  const law=data.law || {};
+  if (!IS_AUTHENTICATED) {
+    header("laws");
+    root.innerHTML=
+      '<button class="back-link" data-action="go-laws">← 法令一覧に戻る</button>'+
+      '<div class="detail-top"><div class="detail-icon">§</div><div class="detail-heading"><p class="eyebrow">PUBLIC LEGAL DOCUMENT</p><h2>'+esc(law.name || "名称未設定")+'</h2><p>'+esc(law.type || "種別未設定")+' · '+esc(law.law_number || "法令番号なし")+'</p></div></div>'+
+      '<div class="meta-grid"><div class="meta-cell"><span>法令番号</span><strong>'+esc(law.law_number || "—")+'</strong></div><div class="meta-cell"><span>e-Gov法令ID</span><strong>'+esc(law.e_gov_id || "—")+'</strong></div><div class="meta-cell"><span>種別</span><strong>'+esc(law.type || "—")+'</strong></div><div class="meta-cell"><span>カテゴリ</span><strong>'+esc(law.category || "未分類")+'</strong></div></div>'+
+      '<section class="panel public-lock-panel"><div class="panel-body"><h3>詳細情報はログイン後に閲覧できます</h3><p>法令XML全文、バージョン情報、変更履歴はアカウント認証後に表示されます。</p><a class="button button-primary" href="/login">ログイン</a> <a class="button button-secondary" href="/register">新規登録</a></div></section>';
+    return;
+  }
+  header("laws");
   root.innerHTML=
     '<button class="back-link" data-action="go-laws">← 法令一覧に戻る</button>'+
     '<div class="detail-top"><div class="detail-icon">§</div><div class="detail-heading"><p class="eyebrow">LEGAL DOCUMENT</p><h2>'+esc(law.name || "名称未設定")+'</h2><p>'+esc(law.type || "種別未設定")+' · '+esc(law.law_number || "法令番号なし")+'</p></div><div class="detail-actions"><button class="button button-secondary" data-action="history" data-kind="law" data-uuid="'+esc(law.uuid)+'">変更履歴</button></div></div>'+
@@ -274,9 +301,12 @@ document.addEventListener("click",async event=>{
 });
 document.querySelectorAll(".nav-item").forEach(button=>button.addEventListener("click",()=>navigate(button.dataset.view)));
 document.getElementById("refresh-button").addEventListener("click",()=>navigate(state.view));
-document.getElementById("search-form").addEventListener("submit",event=>{
-  event.preventDefault();
-  const query=document.getElementById("global-search").value.trim();
-  if(query) search(query);
-});
+const searchForm=document.getElementById("search-form");
+if (searchForm) {
+  searchForm.addEventListener("submit",event=>{
+    event.preventDefault();
+    const query=document.getElementById("global-search").value.trim();
+    if(query) search(query);
+  });
+}
 loadOverview();
