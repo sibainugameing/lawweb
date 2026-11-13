@@ -120,7 +120,7 @@ class LawWebSecurityTests(unittest.TestCase):
     def test_public_home_is_available_without_login(self):
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b"PUBLIC LIBRARY", response.data)
+        self.assertIn(b"LawWeb", response.data)
         self.assertIn(b"新規登録", response.data)
 
     def test_logged_in_user_keeps_authenticated_navigation_on_public_home(self):
@@ -128,8 +128,8 @@ class LawWebSecurityTests(unittest.TestCase):
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"reader01", response.data)
-        self.assertIn(b"SIGNED IN", response.data)
-        self.assertNotIn(b"PUBLIC LIBRARY", response.data)
+        self.assertIn(b"アカウント管理", response.data)
+        self.assertNotIn(b"LAWGit Workspace", response.data)
 
     def test_public_law_list_returns_metadata_only(self):
         mocked_laws = {
