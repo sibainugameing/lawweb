@@ -138,11 +138,11 @@ def _render_heading(
     out: list[str],
     depth: int,
     title_tag: str,
-    fallback_label: str,
+    fallback_suffix: str,
 ) -> None:
     title = _text(_first(element, title_tag))
-    number = _number(element, fallback_label)
-    title = title or number or fallback_label
+    number = _attr(element, "Num")
+    title = title or (f"第{number}{fallback_suffix}" if number else fallback_suffix)
     attributes = _attributes(element)
     if not _text(_first(element, title_tag)) and attributes and not number:
         title = f"{title}（{attributes}）"
@@ -278,14 +278,11 @@ def _render_node(element: ET.Element, out: list[str], depth: int = 0) -> None:
         )
         return
 
-    value = _render_inline_container(element)
     children = list(element)
     if not children:
+        value = _render_inline_container(element)
         if value:
-            if tag in {"Column", "Ruby", "Rt", "RubyBase", "ArithFormula", "Math"}:
-                out.append("  " * depth + value)
-            else:
-                out.append("  " * depth + value)
+            out.append("  " * depth + value)
         else:
             attrs = _attributes(element)
             if attrs:
@@ -293,16 +290,15 @@ def _render_node(element: ET.Element, out: list[str], depth: int = 0) -> None:
         return
 
     # Unknown or auxiliary containers stay visible as labelled, nested sections.
+    # Use only direct text here; itertext() would duplicate the child text below.
+    direct_text = re.sub(r"\\s+", " ", (element.text or "")).strip()
     label = tag
     attrs = _attributes(element)
     if attrs:
         label += f"（{attrs}）"
-    if value:
-        out.extend(["", "  " * depth + f"**{label}**", "", "  " * (depth + 1) + value])
-    elif tag in KNOWN_WRAPPERS:
-        # Known wrappers with no direct text need no extra heading.
-        pass
-    else:
+    if direct_text:
+        out.extend(["", "  " * depth + f"**{label}**", "", "  " * (depth + 1) + direct_text])
+    elif tag not in KNOWN_WRAPPERS:
         out.extend(["", "  " * depth + f"**{label}**", ""])
     _render_children(element, out, depth + 1)
 
