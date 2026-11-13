@@ -8,6 +8,9 @@ const state = {
   rules: [],
   lawQuery: "",
   lawType: "",
+  lawCategory: "",
+  lawCategories: [],
+  recentSearches: [],
   lawPage: 1,
   ruleQuery: "",
   rulePage: 1,
@@ -392,24 +395,25 @@ async function loadOverview() {
     connection(true, "接続済み", ping.root || "LawGit API");
 
     if (!IS_AUTHENTICATED) {
-      const publicIntro = '<section class="welcome-panel"><div class="welcome-copy">' +
-        '<p class="eyebrow">法令ライブラリ</p><h2>法令を探して、基本情報を確認する</h2>' +
-        '<p>法令の一覧と基本メタデータを閲覧できます。XML全文、ルール、変更履歴などの詳細はログイン後に利用できます。</p>' +
+      state.lawCategories = lawCategories;
+      const publicIntro = '<section class="welcome-panel public-search-welcome"><div class="welcome-copy">' +
+        '<p class="eyebrow">法令ライブラリ</p><h2>言葉から、法令を探す。</h2>' +
+        '<p>法令名・法令番号だけでなく、条文の中にある語句からも検索できます。気になる法令を開いて本文を読めます。</p>' +
         '</div><div class="welcome-actions"><a class="action-button primary" href="/register">アカウントを作成</a>' +
         '<a class="action-button" href="/login">ログイン</a></div></section>';
       const quick = '<div class="quick-links">' +
+        '<button class="quick-link" type="button" data-action="focus-search"><span class="quick-link-mark">⌕</span>' +
+        '<span class="quick-link-copy"><strong>全文検索</strong><small>条文の中の言葉から探す</small></span><span class="quick-link-arrow">›</span></button>' +
         '<button class="quick-link" type="button" data-action="go-laws"><span class="quick-link-mark">§</span>' +
-        '<span class="quick-link-copy"><strong>法令一覧</strong><small>名称・番号から探す</small></span><span class="quick-link-arrow">›</span></button>' +
-        '<a class="quick-link" href="/login"><span class="quick-link-mark">⌕</span>' +
-        '<span class="quick-link-copy"><strong>全文検索</strong><small>ログイン後に利用できます</small></span><span class="quick-link-arrow">›</span></a>' +
-        '<a class="quick-link" href="/register"><span class="quick-link-mark">→</span>' +
-        '<span class="quick-link-copy"><strong>閲覧アカウント</strong><small>登録後すぐに利用できます</small></span><span class="quick-link-arrow">›</span></a></div>';
+        '<span class="quick-link-copy"><strong>法令一覧</strong><small>種別・カテゴリから探す</small></span><span class="quick-link-arrow">›</span></button>' +
+        '<div class="quick-link quick-link-static"><span class="quick-link-mark">↗</span>' +
+        '<span class="quick-link-copy"><strong>読み取り専用</strong><small>文書の変更・削除はできません</small></span></div></div>';
       const metrics = '<div class="metrics-grid">' +
         metric("公開法令", laws.length, "閲覧できる法令") +
         metric("カテゴリ", lawCategories.length, "法令の分類") +
         '</div>';
-      const recent = surface("法令", "公開中の基本情報", documentList(laws, "law", 6), "go-laws", "法令一覧");
-      setContent('<div class="view-stack">' + publicIntro + quick + metrics +
+      const recent = surface("法令", "本文まで読める公開法令", documentList(laws, "law", 6), "go-laws", "法令一覧");
+      setContent('<div class="view-stack">' + publicIntro + quick + metrics + renderRecentSearches() +
         (errors.length ? statusRow("一部の情報を取得できません", errors.join("、"), "warning") : "") +
         recent + '</div>');
       return;
@@ -466,7 +470,9 @@ function renderLawList() {
   const query = state.lawQuery.trim().toLocaleLowerCase("ja-JP");
   const filtered = state.laws.filter(law => {
     const text = [law.name, law.law_number, law.e_gov_id, law.category, law.uuid, law.type].join(" ").toLocaleLowerCase("ja-JP");
-    return (!query || text.includes(query)) && (!state.lawType || law.type === state.lawType);
+    return (!query || text.includes(query)) &&
+      (!state.lawType || law.type === state.lawType) &&
+      (!state.lawCategory || law.category === state.lawCategory);
   });
   const pageSize = 20;
   const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
@@ -477,6 +483,10 @@ function renderLawList() {
   const select = '<select id="law-type-filter" class="control filter-select" aria-label="法令種別">' +
     '<option value="">すべての種別</option>' + types.map(type =>
       '<option value="' + esc(type) + '"' + (state.lawType === type ? " selected" : "") + '>' + esc(type) + '</option>'
+    ).join("") + '</select>' +
+    '<select id="law-category-filter" class="control filter-select" aria-label="法令カテゴリ">' +
+    '<option value="">すべてのカテゴリ</option>' + state.lawCategories.map(item => item.category).filter(Boolean).map(category =>
+      '<option value="' + esc(category) + '"' + (state.lawCategory === category ? " selected" : "") + '>' + esc(category) + '</option>'
     ).join("") + '</select>';
   const list = pageItems.length ? documentList(pageItems, "law") :
     emptyState("該当する法令がありません", "検索語や種別フィルターを変更してください。", "⌕");
@@ -484,8 +494,8 @@ function renderLawList() {
     formatNumber(state.laws.length) + ' 件</p>';
   const markup = '<div class="view-stack"><div class="view-heading"><div class="view-heading-main">' +
     '<p class="eyebrow">ライブラリ / 法令</p><h2>法令一覧</h2><p>' +
-    (IS_AUTHENTICATED ? "法令の基本情報を確認し、詳細からXML本文や改正履歴を開けます。" :
-      "公開されている法令の基本情報を閲覧できます。") +
+    (IS_AUTHENTICATED ? "法令の本文・XML原文・改正履歴を確認できます。" :
+      "法令本文まで閲覧できます。上部検索から条文全文も検索できます。") +
     '</p></div><span class="readonly-note">閲覧専用</span></div>' +
     '<div class="list-toolbar">' + count + '<div class="filter-controls">' +
     '<input id="law-filter" class="control filter-input" type="search" value="' + esc(state.lawQuery) +
@@ -580,11 +590,12 @@ function renderLaw(data) {
       '<div><strong>法令本文</strong><span>XML構造をMarkdownとして表示</span></div>' + tabs +
       '</div>' + content + '</section>';
   } else {
-    primary = '<section class="surface"><div class="surface-body">' +
-      '<div class="view-heading"><div class="view-heading-main"><h3 class="surface-title">本文と変更履歴はログイン後に閲覧できます</h3>' +
-      '<p>このページでは法令の基本情報を公開しています。</p></div></div>' +
-      '<div class="view-heading-actions"><a class="action-button primary" href="/login">ログイン</a>' +
-      '<a class="action-button" href="/register">新規登録</a></div></div></section>';
+    const body = data.markdown ?
+      '<article class="markdown-document">' + markdownToHtml(data.markdown, true) + '</article>' :
+      '<div class="reader-error">' + esc(data.markdown_error || "この法令の本文を整形できませんでした。") + '</div>';
+    primary = '<section class="source-panel law-reader"><div class="reader-panel-header">' +
+      '<div><strong>法令本文</strong><span>公開されている本文の整形表示</span></div>' +
+      '<span class="readonly-note">ログイン不要</span></div>' + body + '</section>';
   }
   setContent('<div class="view-stack">' + back + header + metadata +
     '<div class="detail-layout"><div class="detail-primary">' + primary + '</div>' +
@@ -819,37 +830,48 @@ async function compareRevisions() {
   }
 }
 
+function renderRecentSearches() {
+  if (!state.recentSearches.length) {
+    return '<section class="recent-searches"><div class="recent-search-heading">検索例</div>' +
+      '<div class="search-chips"><button type="button" data-action="search-term" data-query="民法">民法</button>' +
+      '<button type="button" data-action="search-term" data-query="個人情報">個人情報</button>' +
+      '<button type="button" data-action="search-term" data-query="道路交通">道路交通</button></div></section>';
+  }
+  return '<section class="recent-searches"><div class="recent-search-heading">このセッションの最近の検索</div>' +
+    '<div class="search-chips">' + state.recentSearches.map(query =>
+      '<button type="button" data-action="search-term" data-query="' + esc(query) + '">' + esc(query) + '</button>'
+    ).join("") + '</div></section>';
+}
+
 async function search(query) {
   const value = String(query || "").trim();
   if (!value) return;
-  if (!IS_AUTHENTICATED) {
-    state.lawQuery = value;
-    state.lawPage = 1;
-    await loadLaws();
-    const field = document.getElementById("law-filter");
-    if (field) field.focus();
-    return;
-  }
   state.lastSearch = value;
+  state.recentSearches = [value, ...state.recentSearches.filter(item => item !== value)].slice(0, 6);
   setPage("search");
-  loading("検索しています");
+  loading("法令を検索しています");
   try {
-    const data = await api("search?q=" + encodeURIComponent(value) + "&limit=100");
-    const hits = data.hits || [];
+    const endpoint = IS_AUTHENTICATED ? "search" : "public/search";
+    const data = await api(endpoint + "?q=" + encodeURIComponent(value) + "&limit=" + (IS_AUTHENTICATED ? "100" : "50"));
+    const hits = (data.hits || []).filter(hit => IS_AUTHENTICATED || hit.kind === "law");
     const rows = hits.length ? '<div class="search-results">' + hits.map(hit => {
-      const kind = hit.kind === "law" ? "law" : "rule";
-      return '<article class="search-hit"><span class="document-symbol" aria-hidden="true">' +
-        (kind === "law" ? "§" : "≡") + '</span><div class="document-main">' +
-        '<button class="document-name table-link" type="button" data-action="' + kind +
-        '" data-uuid="' + esc(hit.uuid) + '">' + esc(hit.name || "名称未設定") + '</button>' +
-        '<div class="document-meta"><span class="pill neutral">' + esc(hit.kind || kind) +
-        '</span><span>一致箇所: ' + esc(hit.matched || "—") + '</span></div>' +
-        '<p>' + esc(hit.snippet || "") + '</p></div></article>';
-    }).join("") + '</div>' : emptyState("一致する文書はありません", "別のキーワードで検索してください。", "⌕");
+      return '<article class="search-hit"><span class="document-symbol" aria-hidden="true">§</span>' +
+        '<div class="document-main"><button class="document-name table-link" type="button" data-action="law" data-uuid="' +
+        esc(hit.uuid) + '">' + esc(hit.name || "名称未設定") + '</button>' +
+        '<div class="document-meta"><span class="pill neutral">法令</span>' +
+        (hit.matched ? '<span>一致箇所: ' + esc(hit.matched) + '</span>' : '') + '</div>' +
+        '<p class="search-snippet">' + esc(hit.snippet || "") + '</p></div>' +
+        '<button class="search-open" type="button" data-action="law" data-uuid="' + esc(hit.uuid) + '">本文を読む →</button></article>';
+    }).join("") + '</div>' : emptyState("一致する法令はありません", "別の語句や法令番号で検索してください。", "⌕");
+    const truncation = data.truncated ?
+      '<p class="search-truncated">結果が多いため一部を表示しています。検索語を追加して絞り込んでください。</p>' : "";
+    const guestHint = !IS_AUTHENTICATED ?
+      '<p class="search-scope-note">検索対象：公開法令の本文・法令名・法令番号。ユーザー定義ルールは検索対象に含みません。</p>' : "";
     setContent('<div class="view-stack"><div class="view-heading"><div class="view-heading-main">' +
-      '<p class="eyebrow">検索</p><h2>「' + esc(value) + '」の検索結果</h2>' +
-      '<p>法令とルールの本文・メタデータを検索しています。</p></div>' +
-      '<span class="readonly-note">' + formatNumber(hits.length) + ' 件</span></div>' + rows + '</div>');
+      '<p class="eyebrow">全文検索</p><h2>「' + esc(value) + '」の検索結果</h2>' +
+      '<p>法令本文から一致箇所を探しています。</p></div>' +
+      '<span class="readonly-note">' + formatNumber(hits.length) + ' 件</span></div>' +
+      renderRecentSearches() + guestHint + truncation + rows + '</div>');
   } catch (error) {
     errorView(error);
   }
@@ -932,6 +954,12 @@ document.addEventListener("click", async event => {
   const action = button.dataset.action;
 
   if (action === "go-laws") return navigate("laws");
+  if (action === "focus-search") {
+    const field = document.getElementById("global-search");
+    if (field) field.focus();
+    return;
+  }
+  if (action === "search-term") return search(button.dataset.query || "");
   if (action === "go-rules") return navigate("rules");
   if (action === "go-activity") return navigate("activity");
   if (action === "refresh") {
@@ -1023,6 +1051,10 @@ document.addEventListener("change", event => {
     state.diffOlder = event.target.value;
   } else if (event.target.id === "diff-newer-select") {
     state.diffNewer = event.target.value;
+  } else if (event.target.id === "law-category-filter") {
+    state.lawCategory = event.target.value;
+    state.lawPage = 1;
+    renderLawList();
   }
 });
 
