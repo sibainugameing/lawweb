@@ -362,7 +362,7 @@ def _render_sublist(element: ET.Element, out: list[str], depth: int) -> None:
     sentence_tag = f"Sublist{level}Sentence"
     sentence_element = _first(element, sentence_tag)
     sentence = _render_inline_container(sentence_element) if sentence_element is not None else ""
-    prefix = "  " * (depth + level - 1)
+    prefix = "  " * level
     if sentence:
         out.append(prefix + "- " + sentence)
     _render_children(element, out, depth + 1, {sentence_tag})
@@ -433,13 +433,14 @@ def _render_node(element: ET.Element, out: list[str], depth: int = 0) -> None:
         return
 
     if tag == "List":
-        _render_children(element, out, depth + 1)
+        out.append("")
+        _render_children(element, out, 0)
         return
 
     if tag == "ListSentence":
         value = _render_inline_container(element)
         if value:
-            out.append("  " * depth + "- " + value)
+            out.append("- " + value)
         return
 
     if re.fullmatch(r"Sublist[1-3]", tag):
