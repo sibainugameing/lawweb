@@ -478,3 +478,39 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .diff-container { margin: 0; }
   .diff-view { min-width: 560px; }
 }
+
+
+/* Tables produced from the e-Gov legal XML schema */
+.md-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  margin: 15px 0 20px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  -webkit-overflow-scrolling: touch;
+}
+.md-table {
+  width: 100%;
+  min-width: 430px;
+  border-collapse: collapse;
+  color: #35434d;
+  font-size: 11px;
+  line-height: 1.7;
+}
+.md-table th, .md-table td {
+  min-width: 90px;
+  padding: 9px 11px;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.md-table th:last-child, .md-table td:last-child { border-right: 0; }
+.md-table tbody tr:last-child td { border-bottom: 0; }
+.md-table thead th { color: #435b55; background: #f2f6f4; font-weight: 700; }
+@media (max-width: 620px) {
+  .md-table { min-width: 390px; font-size: 10px; }
+  .md-table th, .md-table td { padding: 8px 9px; }
+}
