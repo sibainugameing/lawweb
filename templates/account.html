@@ -11,11 +11,7 @@
 <body class="auth-page">
   <main class="auth-shell">
     <section class="auth-card account-card">
-      <a class="brand auth-brand" href="/" aria-label="LawWeb">
-        <span class="brand-mark">L<span>.</span></span>
-        <span class="brand-copy"><strong>LAW<span>WEB</span></strong><small>LAWGIT WORKSPACE</small></span>
-      </a>
-      <p class="eyebrow">ACCOUNT SETTINGS</p>
+      <a class="brand-name auth-brand-name" href="/" aria-label="LawWeb">LawWeb</a>
       <h1>アカウント管理</h1>
       {% if error %}<div class="auth-alert" role="alert">{{ error }}</div>{% endif %}
       {% if success == "password-updated" %}<div class="auth-success" role="status">パスワードを変更しました。ほかのすべてのセッションはログアウトされました。</div>{% endif %}
@@ -56,9 +52,8 @@
       </form>
 
       <p class="auth-switch"><a href="/">LawWebに戻る</a></p>
-      <div class="auth-meta"><span>LOCAL ACCESS ONLY</span><span>READ-ONLY ACCOUNT</span></div>
     </section>
-    <p class="auth-footnote">LawWeb · アカウント設定</p>
+
   </main>
 </body>
 </html>
