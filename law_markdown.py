@@ -261,6 +261,7 @@ def _render_article(element: ET.Element, out: list[str], depth: int) -> None:
 
 def _render_paragraph(element: ET.Element, out: list[str], depth: int) -> None:
     number = _text(_first(element, "ParagraphNum")) or _number(element)
+    caption = _text(_first(element, "ParagraphCaption"))
     sentence_nodes = [
         child for child in list(element)
         if _tag(child) in {"ParagraphSentence", "Sentence"}
@@ -272,11 +273,14 @@ def _render_paragraph(element: ET.Element, out: list[str], depth: int) -> None:
     prefix = ""
     if sentence:
         marker = f"{number}. " if number else ""
-        out.append(prefix + marker + sentence)
+        line = prefix + marker + sentence
+        if caption:
+            out.append("**" + caption + "**")
+        out.append(line)
     elif number:
         out.append(prefix + f"{number}.")
 
-    excluded = {"ParagraphNum", "ParagraphSentence", "Sentence"}
+    excluded = {"ParagraphNum", "ParagraphCaption", "ParagraphSentence", "Sentence"}
     _render_children(element, out, depth + 1, excluded)
 
 
@@ -335,6 +339,11 @@ def _render_node(element: ET.Element, out: list[str], depth: int = 0) -> None:
     if tag == "SupplProvision":
         label = _text(_first(element, "SupplProvisionLabel", "SupplProvisionTitle"))
         heading = label if label.startswith("附則") else ("附則" + (f"　{label}" if label else ""))
+        amendment = _attr(element, "AmendLawNum")
+        if amendment:
+            heading += f"（改正法令：{amendment}）"
+        if _attr(element, "Extract").lower() == "true":
+            heading += "（抄録）"
         out.extend(["", "## " + heading, ""])
         _render_children(element, out, depth + 1, {"SupplProvisionLabel", "SupplProvisionTitle"})
         return
@@ -371,14 +380,16 @@ def _render_node(element: ET.Element, out: list[str], depth: int = 0) -> None:
         return
 
     if tag in APPENDIX_TAGS:
-        label = _text(_first(element, "AppdxTableTitle", "AppdxStyleTitle", "AppdxFormatTitle", "AppdxFigTitle"))
+        title_tags = (
+            "AppdxTableTitle", "AppdxStyleTitle", "AppdxFormatTitle",
+            "AppdxFigTitle", "SupplProvisionAppdxTableTitle",
+            "SupplProvisionAppdxStyleTitle", "SupplProvisionAppdxFormatTitle",
+        )
+        label = _text(_first(element, *title_tags))
         number = _number(element)
         heading = _join_nonempty([APPENDIX_TAGS[tag], number, label])
         out.extend(["", "## " + heading, ""])
-        _render_children(
-            element, out, depth + 1,
-            {"AppdxTableTitle", "AppdxStyleTitle", "AppdxFormatTitle", "AppdxFigTitle"},
-        )
+        _render_children(element, out, depth + 1, set(title_tags))
         return
 
     children = list(element)
