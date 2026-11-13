@@ -453,7 +453,7 @@ def security_gate():
             abort(403)
         return None
 
-    # Anonymous users may access only the public landing page and public law metadata.
+    # Anonymous users may read public law search and law text only; all other APIs stay private.
     if request.path == "/" or request.path.startswith("/api/public/"):
         if request.method not in {"GET", "HEAD"}:
             abort(405)
