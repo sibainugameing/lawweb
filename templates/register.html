@@ -11,13 +11,9 @@
 <body class="auth-page">
   <main class="auth-shell">
     <section class="auth-card">
-      <a class="brand auth-brand" href="/" aria-label="LawWeb">
-        <span class="brand-mark">L<span>.</span></span>
-        <span class="brand-copy"><strong>LAW<span>WEB</span></strong><small>LAWGIT WORKSPACE</small></span>
-      </a>
-      <p class="eyebrow">CREATE A READER ACCOUNT</p>
+      <a class="brand-name auth-brand-name" href="/" aria-label="LawWeb">LawWeb</a>
       <h1>新規登録</h1>
-      <p class="auth-description">登録後は自動的にログインします。すべてのアカウントは閲覧専用で、法令データの変更権限はありません。</p>
+      <p class="auth-description">登録すると自動的にログインします。アカウントは閲覧専用です。</p>
       {% if error %}<div class="auth-alert" role="alert">{{ error }}</div>{% endif %}
       {% if request.args.get("deleted") %}<div class="auth-notice" role="status">アカウントを削除しました。必要なら新しいアカウントを登録できます。</div>{% endif %}
       <form method="post" action="{{ url_for('register_post') }}" class="auth-form" autocomplete="on">
@@ -33,9 +29,8 @@
         <button class="button button-primary auth-submit" type="submit">アカウントを作成 <span aria-hidden="true">→</span></button>
       </form>
       <p class="auth-switch">すでにアカウントを持っていますか？ <a href="{{ url_for('login') }}">ログイン</a></p>
-      <div class="auth-meta"><span>LOCAL ACCESS ONLY</span><span>READ-ONLY ACCOUNT</span></div>
     </section>
-    <p class="auth-footnote"><a href="/">公開範囲の閲覧に戻る</a> · LawWeb</p>
+    <p class="auth-footnote"><a href="/">戻る</a></p>
   </main>
 </body>
 </html>
