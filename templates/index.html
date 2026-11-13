@@ -52,6 +52,7 @@
           <button class="icon-button" id="refresh-button" title="再読み込み" aria-label="再読み込み">↻</button>
           {% if current_user %}
           <span class="user-pill">{{ current_user.username }}</span>
+          <a class="button button-secondary" href="{{ url_for('account_page') }}">アカウント管理</a>
           <form method="post" action="{{ url_for('logout') }}" class="logout-form">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <button class="button button-secondary logout-button" type="submit">ログアウト</button>
