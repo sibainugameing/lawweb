@@ -143,6 +143,22 @@ class LawWebSecurityTests(unittest.TestCase):
             self.assertIn(f'data-view="{view}"', html)
         self.assertIn("アカウント", html)
 
+    def test_law_ui_exposes_markdown_xml_and_diff_controls(self):
+        self.assertEqual(self.login().status_code, 302)
+        law_uuid = "550e8400-e29b-41d4-a716-446655440000"
+        xml = """<law><metadata><name>UI試験法</name><type>法律</type></metadata>
+        <body><MainProvision><Article Num="1"><ArticleTitle>第一条</ArticleTitle>
+        <Paragraph Num="1"><ParagraphSentence><Sentence>本文。</Sentence></ParagraphSentence></Paragraph>
+        </Article></MainProvision></body></law>"""
+        with patch.object(lawweb, "lawgit_request", return_value=({"law":{"uuid":law_uuid,"name":"UI試験法"}, "xml":xml}, None)):
+            response = self.client.get("/api/laws/" + law_uuid)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("markdown", response.json["result"])
+        js = self.client.get("/static/app.js").get_data(as_text=True)
+        self.assertIn("law-display-mode", js)
+        self.assertIn("compare-revisions", js)
+        self.assertIn("diffToHtml", js)
+
     def test_rebuilt_ui_assets_are_served(self):
         css = self.client.get("/static/app.css")
         js = self.client.get("/static/app.js")
