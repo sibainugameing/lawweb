@@ -22,7 +22,7 @@
       {% if success == "sessions-revoked" %}<div class="auth-success" role="status">現在のセッション以外をすべてログアウトしました。</div>{% endif %}
       <div class="account-summary">
         <div><span>ユーザー名</span><strong>{{ username }}</strong></div>
-        <div><span>登録日時（UTC）</span><strong>{{ created_at | int }}</strong></div>
+        <div><span>登録日時（UTC）</span><strong>{{ created_at }}</strong></div>
         <div><span>権限</span><strong>閲覧専用</strong></div>
       </div>
 
