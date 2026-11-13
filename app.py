@@ -572,7 +572,6 @@ def public_laws():
     result = laws or {}
     return jsonify({"ok": True, "result": {
         "laws": [public_law_fields(item) for item in result.get("laws", [])],
-        "errors": result.get("errors", []),
     }})
 
 
