@@ -98,6 +98,18 @@ class LawMarkdownTests(unittest.TestCase):
         self.assertIn("| 一 | 第一欄 〔rowspan=2〕 |", markdown)
         self.assertIn("元XMLは縦書き指定", markdown)
 
+    def test_table_nested_in_item_sentence_is_rendered_separately(self):
+        item = """<Item Num="1"><ItemTitle>一</ItemTitle><ItemSentence>
+        <Sentence>本文に続く表。</Sentence>
+        <Table><TableHeaderRow><TableHeaderColumn>項目</TableHeaderColumn><TableHeaderColumn>内容</TableHeaderColumn></TableHeaderRow>
+        <TableRow><TableColumn>A</TableColumn><TableColumn>B</TableColumn></TableRow></Table>
+        </ItemSentence></Item>"""
+        xml = SAMPLE.replace("</Paragraph>", item + "</Paragraph>", 1)
+        markdown = law_xml_to_markdown(xml)
+        self.assertIn("- 一　本文に続く表。", markdown)
+        self.assertIn("| 項目 | 内容 |", markdown)
+        self.assertIn("| A | B |", markdown)
+
     def test_table_without_header_gets_column_labels(self):
         table = """<TableStruct><Table><TableRow><TableColumn>値A</TableColumn>
         <TableColumn>値B</TableColumn></TableRow></Table></TableStruct>"""
