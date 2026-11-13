@@ -95,6 +95,24 @@ def _attributes(element: ET.Element) -> str:
     return ", ".join(f"{key}={value!r}" for key, value in sorted(element.attrib.items()))
 
 
+def _status_notes(element: ET.Element) -> str:
+    """Expose legal-status attributes which affect interpretation of provisions."""
+    notes: list[str] = []
+    for key, label in (("Delete", "削除指定"), ("Hide", "非表示指定")):
+        value = _attr(element, key)
+        if value.lower() in {"true", "1", "yes"}:
+            notes.append(label)
+        elif value:
+            notes.append(f"{key}={value}")
+    old_style = _attr(element, "OldStyle")
+    if old_style:
+        notes.append(f"旧形式（OldStyle={old_style}）")
+    old_number = _attr(element, "OldNum")
+    if old_number:
+        notes.append(f"旧番号（{old_number}）")
+    return " 〔" + "、".join(notes) + "〕" if notes else ""
+
+
 def _number(element: ET.Element, fallback_prefix: str = "") -> str:
     value = _attr(element, "Num")
     return f"{fallback_prefix}{value}" if value else ""
@@ -266,6 +284,7 @@ def _render_heading(
     attributes = _attributes(element)
     if not _text(_first(element, title_tag)) and attributes and not number:
         title = f"{title}（{attributes}）"
+    title += _status_notes(element)
     level = HEADING_TAGS[_tag(element)][0]
     out.extend(["", "#" * level + " " + title, ""])
     _render_children(element, out, depth + 1, {title_tag})
@@ -276,6 +295,7 @@ def _render_article(element: ET.Element, out: list[str], depth: int) -> None:
     caption = _inline_text(_first(element, "ArticleCaption"))
     number = _number(element, "第")
     title = title or (number + "条" if number else "条文")
+    title += _status_notes(element)
     heading = _join_nonempty([title, caption])
     out.extend(["", "### " + heading, ""])
     _render_children(
@@ -298,12 +318,14 @@ def _render_paragraph(element: ET.Element, out: list[str], depth: int) -> None:
     prefix = ""
     if sentence:
         marker = f"{number}. " if number else ""
-        line = prefix + marker + sentence
+        line = prefix + marker + sentence + _status_notes(element)
         if caption:
             out.append("**" + caption + "**")
         out.append(line)
     elif number:
-        out.append(prefix + f"{number}.")
+        out.append(prefix + f"{number}." + _status_notes(element))
+    elif _status_notes(element):
+        out.append(_status_notes(element).strip())
 
     excluded = {"ParagraphNum", "ParagraphCaption", "ParagraphSentence", "Sentence"}
     _render_children(element, out, depth + 1, excluded)
@@ -333,19 +355,20 @@ def _render_item(element: ET.Element, out: list[str], depth: int, marker: str = 
 
     # e-Gov item titles already contain legal numbering (一, 二, イ, ロ).
     # Prefer those labels over duplicating the numeric Num attribute.
+    status = _status_notes(element)
     if title and sentence:
-        out.append(f"{prefix}{marker} {title}　{sentence}")
+        out.append(f"{prefix}{marker} {title}　{sentence}{status}")
     elif title:
-        out.append(f"{prefix}{marker} {title}")
+        out.append(f"{prefix}{marker} {title}{status}")
     elif sentence and number:
-        out.append(f"{prefix}{number}. {sentence}")
+        out.append(f"{prefix}{number}. {sentence}{status}")
     elif sentence:
-        out.append(f"{prefix}{marker} {sentence}")
+        out.append(f"{prefix}{marker} {sentence}{status}")
     elif number:
-        out.append(f"{prefix}{number}.")
+        out.append(f"{prefix}{number}.{status}")
     else:
         attrs = _attributes(element)
-        out.append(f"{prefix}{marker} [{tag}]" + (f"（{attrs}）" if attrs else ""))
+        out.append(f"{prefix}{marker} [{tag}]" + (f"（{attrs}）" if attrs else "") + status)
 
     excluded = set(title_tags) | set(sentence_tags) | {"Sentence"}
     _render_children(element, out, depth + 1, excluded)
@@ -417,18 +440,27 @@ def _render_node(element: ET.Element, out: list[str], depth: int = 0) -> None:
         return
 
     if tag == "MainProvision":
-        out.extend(["", "## 本則", ""])
+        heading = "本則"
+        if _attr(element, "Extract").lower() in {"true", "1", "yes"}:
+            heading += "（抄録）"
+        heading += _status_notes(element)
+        out.extend(["", "## " + heading, ""])
         _render_children(element, out, depth + 1)
         return
 
     if tag == "SupplProvision":
         label = _inline_text(_first(element, "SupplProvisionLabel", "SupplProvisionTitle"))
         heading = label if label.startswith("附則") else ("附則" + (f"　{label}" if label else ""))
+        provision_type = _attr(element, "Type")
+        if provision_type:
+            type_label = {"New": "制定時", "Amend": "改正時"}.get(provision_type, provision_type)
+            heading += f"（{type_label}）"
         amendment = _attr(element, "AmendLawNum")
         if amendment:
             heading += f"（改正法令：{amendment}）"
-        if _attr(element, "Extract").lower() == "true":
+        if _attr(element, "Extract").lower() in {"true", "1", "yes"}:
             heading += "（抄録）"
+        heading += _status_notes(element)
         out.extend(["", "## " + heading, ""])
         _render_children(element, out, depth + 1, {"SupplProvisionLabel", "SupplProvisionTitle"})
         return
