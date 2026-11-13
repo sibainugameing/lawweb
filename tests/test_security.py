@@ -188,6 +188,60 @@ class LawWebSecurityTests(unittest.TestCase):
         self.assertNotIn("xml", response.json["result"])
         self.assertNotIn("path", response.json["result"]["law"])
 
+    def test_law_detail_api_includes_markdown_and_preserves_xml(self):
+        self.assertEqual(self.login().status_code, 302)
+        law_uuid = "550e8400-e29b-41d4-a716-446655440000"
+        xml = """<law><identifiers><uuid>550e8400-e29b-41d4-a716-446655440000</uuid></identifiers>
+        <metadata><name>試験法</name><law-number>令和元年法律第一号</law-number><type>法律</type></metadata>
+        <body><MainProvision><Chapter Num="1"><ChapterTitle>第一章 総則</ChapterTitle>
+        <Article Num="1"><ArticleTitle>第一条</ArticleTitle><Paragraph Num="1">
+        <ParagraphSentence><Sentence>本文の内容。</Sentence></ParagraphSentence></Paragraph></Article>
+        </Chapter></MainProvision></body></law>"""
+        with patch.object(lawweb, "lawgit_request", return_value=({"law":{"uuid":law_uuid,"name":"試験法"}, "xml":xml}, None)):
+            response = self.client.get("/api/laws/" + law_uuid)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("# 試験法", response.json["result"]["markdown"])
+        self.assertIn("本文の内容。", response.json["result"]["markdown"])
+        self.assertEqual(response.json["result"]["xml"], xml)
+
+    def test_law_revision_api_includes_markdown(self):
+        self.assertEqual(self.login().status_code, 302)
+        law_uuid = "550e8400-e29b-41d4-a716-446655440000"
+        xml = """<law><metadata><name>過去法</name><type>法律</type></metadata>
+        <body><MainProvision><Article Num="1"><ArticleTitle>第一条</ArticleTitle>
+        <Paragraph Num="1"><ParagraphSentence><Sentence>過去の本文。</Sentence></ParagraphSentence></Paragraph>
+        </Article></MainProvision></body></law>"""
+        with patch.object(lawweb, "lawgit_request", return_value=({"rev":"abcd1234","xml":xml}, None)):
+            response = self.client.get("/api/laws/" + law_uuid + "/revisions/abcd1234")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("過去の本文。", response.json["result"]["markdown"])
+
+    def test_law_diff_api_compares_markdown_revisions(self):
+        self.assertEqual(self.login().status_code, 302)
+        law_uuid = "550e8400-e29b-41d4-a716-446655440000"
+        base = """<law><metadata><name>試験法</name><type>法律</type></metadata>
+        <body><MainProvision><Article Num="1"><ArticleTitle>第一条</ArticleTitle>
+        <Paragraph Num="1"><ParagraphSentence><Sentence>旧本文。</Sentence></ParagraphSentence></Paragraph>
+        </Article></MainProvision></body></law>"""
+        head = base.replace("旧本文", "新しい本文")
+        def fake_lawgit(path, params=None):
+            return ({"xml": base if path.endswith("/1111") else head}, None)
+        with patch.object(lawweb, "lawgit_request", side_effect=fake_lawgit):
+            response = self.client.get("/api/laws/" + law_uuid + "/diff?older=1111&newer=2222")
+        self.assertEqual(response.status_code, 200)
+        result = response.json["result"]
+        self.assertIn("-1. 旧本文。", result["diff"])
+        self.assertIn("+1. 新しい本文。", result["diff"])
+        self.assertGreater(result["additions"], 0)
+        self.assertGreater(result["deletions"], 0)
+
+    def test_law_diff_api_rejects_invalid_revision_ids(self):
+        self.assertEqual(self.login().status_code, 302)
+        response = self.client.get(
+            "/api/laws/550e8400-e29b-41d4-a716-446655440000/diff?older=../../etc&newer=1234"
+        )
+        self.assertEqual(response.status_code, 400)
+
     def test_private_api_still_requires_login(self):
         response = self.client.get("/api/rules")
         self.assertEqual(response.status_code, 401)
