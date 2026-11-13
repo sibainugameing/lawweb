@@ -135,6 +135,9 @@ def _render_inline_container(
             value = "".join(node.itertext()).strip()
             if value:
                 parts.append(("^" if _tag(node) == "Sup" else "_") + "(" + value + ")")
+            attributes = _attributes(node)
+            if attributes:
+                parts.append(f"〔{_tag(node)}: {attributes}〕")
             return
         if _tag(node) == "Ruby":
             base_parts = [node.text or ""]
@@ -149,6 +152,9 @@ def _render_inline_container(
             base = "".join(base_parts).strip()
             reading = "".join(reading_parts).strip()
             parts.append(base + (f"（{reading}）" if reading else ""))
+            attributes = _attributes(node)
+            if attributes:
+                parts.append(f"〔Ruby: {attributes}〕")
             return
         if node.text:
             parts.append(node.text)
@@ -160,6 +166,9 @@ def _render_inline_container(
             visit(child)
             if child.tail:
                 parts.append(child.tail)
+        attributes = _attributes(node)
+        if attributes:
+            parts.append(f"〔{_tag(node)}: {attributes}〕")
 
     visit(element)
     return re.sub(r"[ \t\r\n]+", " ", "".join(parts)).strip()
@@ -170,7 +179,7 @@ def _inline_text(element: ET.Element | None) -> str:
 
 
 def _render_table_cell(element: ET.Element, header: bool = False) -> str:
-    value = _render_inline_container(element).replace("|", "\\|").replace("\\n", " ")
+    value = _render_inline_container(element).replace("|", "\\|").replace("\n", " ")
     annotations = []
     for key in (
         "rowspan", "colspan", "Align", "Valign",
@@ -291,7 +300,7 @@ def _render_heading(
 
 
 def _render_article(element: ET.Element, out: list[str], depth: int) -> None:
-    title = _text(_first(element, "ArticleTitle"))
+    title = _inline_text(_first(element, "ArticleTitle"))
     caption = _inline_text(_first(element, "ArticleCaption"))
     number = _number(element, "第")
     title = title or (number + "条" if number else "条文")
