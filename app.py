@@ -909,8 +909,8 @@ def law_revision_diff(uuid: str):
     except LawMarkdownError as exc:
         return jsonify({"ok": False, "error": str(exc)}), 422
 
-    additions = sum(1 for line in diff.splitlines() if line.startswith("+") and not line.startswith("+++"))
-    deletions = sum(1 for line in diff.splitlines() if line.startswith("-") and not line.startswith("---"))
+    additions = sum(1 for line in diff.splitlines() if line.startswith("+") and not line.startswith("+++ "))
+    deletions = sum(1 for line in diff.splitlines() if line.startswith("-") and not line.startswith("--- "))
     return jsonify({"ok": True, "result": {
         "older": older_rev, "newer": newer_rev,
         "older_subject": older.get("subject", "") if isinstance(older, dict) else "",
