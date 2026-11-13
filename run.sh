@@ -24,16 +24,19 @@ LAWGIT_API_PORT=${LAWGIT_API_PORT:-8787}
 LAWGIT_API_URL="http://127.0.0.1:$LAWGIT_API_PORT"
 LAWGIT_TOKEN=${LAWGIT_TOKEN:-}
 LAWGIT_TIMEOUT=${LAWGIT_TIMEOUT:-10}
-WEB_HOST=${WEB_HOST:-127.0.0.1}
+WEB_HOST=${WEB_HOST:-0.0.0.0}
 WEB_PORT=${WEB_PORT:-5000}
 VENV_DIR="$ROOT/.venv"
 LAW_PID=""
 LAW_LOG="${TMPDIR:-/tmp}/lawweb-lawgit-$$.log"
 
-if [ "$WEB_HOST" != "127.0.0.1" ]; then
-  echo "[lawweb] 安全のためWEB_HOSTは127.0.0.1固定です。" >&2
-  exit 1
-fi
+case "$WEB_HOST" in
+  0.0.0.0|127.0.0.1) ;;
+  *)
+    echo "[lawweb] WEB_HOSTは0.0.0.0（LAN対応）または127.0.0.1（このPCのみ）を指定してください。" >&2
+    exit 1
+    ;;
+esac
 if [ "$LAWGIT_API_HOST" != "127.0.0.1" ]; then
   echo "[lawweb] 安全のためLAWGIT_API_HOSTは127.0.0.1固定です。" >&2
   exit 1
@@ -105,5 +108,9 @@ export LAWGIT_API_URL LAWGIT_TOKEN LAWGIT_TIMEOUT WEB_HOST WEB_PORT
 echo "[lawweb] アカウント登録はWebの /register から行えます。"
 
 echo "[lawweb] LawWeb: http://127.0.0.1:$WEB_PORT"
+if [ "$WEB_HOST" = "0.0.0.0" ]; then
+  echo "[lawweb] 同じLAN内の端末からは http://<このPCのLAN IP>:$WEB_PORT を開いてください。"
+  echo "[lawweb] 公開IP・インターネットからのアクセスはアプリ側で拒否されます。"
+fi
 echo "[lawweb] 停止するには Ctrl+C を押してください。"
-"$VENV_DIR/bin/waitress-serve" --host=127.0.0.1 --port="$WEB_PORT" --threads=4 --channel-timeout=30 app:app
+"$VENV_DIR/bin/waitress-serve" --host="$WEB_HOST" --port="$WEB_PORT" --threads=4 --channel-timeout=30 app:app
