@@ -61,7 +61,7 @@ class LawMarkdownTests(unittest.TestCase):
         self.assertIn("### 第一条　（目的）", markdown)
         self.assertIn("この法律は、<道路> & 交通の安全を図る。", markdown)
         self.assertIn("２. 前項に定めるほか、必要な事項を定める。", markdown)
-        self.assertIn("1. 一 歩行者の安全を確保すること。", markdown)
+        self.assertIn("- 一　歩行者の安全を確保すること。", markdown)
         self.assertIn("## 附則", markdown)
 
     def test_unknown_elements_and_attributes_are_not_discarded(self):
@@ -83,7 +83,7 @@ class LawMarkdownTests(unittest.TestCase):
             1,
         )
         markdown = law_xml_to_markdown(xml)
-        self.assertIn("- イ 細目の本文。", markdown)
+        self.assertIn("  - イ　細目の本文。", markdown)
 
     def test_escaped_entities_are_decoded_as_text(self):
         markdown = law_xml_to_markdown(SAMPLE)
