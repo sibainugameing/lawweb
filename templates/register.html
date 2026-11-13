@@ -19,6 +19,7 @@
       <h1>新規登録</h1>
       <p class="auth-description">登録後は自動的にログインします。すべてのアカウントは閲覧専用で、法令データの変更権限はありません。</p>
       {% if error %}<div class="auth-alert" role="alert">{{ error }}</div>{% endif %}
+      {% if request.args.get("deleted") %}<div class="auth-notice" role="status">アカウントを削除しました。必要なら新しいアカウントを登録できます。</div>{% endif %}
       <form method="post" action="{{ url_for('register_post') }}" class="auth-form" autocomplete="on">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <label for="username">ユーザー名</label>
