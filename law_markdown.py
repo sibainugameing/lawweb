@@ -196,6 +196,9 @@ def _render_table(element: ET.Element, out: list[str], depth: int = 0) -> None:
         values = (values + [" "] * max_columns)[:max_columns]
         return "| " + " | ".join(values) + " |"
 
+    writing_mode = _attr(table, "WritingMode")
+    if writing_mode == "vertical":
+        out.extend(["", "> 元XMLは縦書き指定です。Markdownでは横方向に整形して表示します。"])
     out.extend(["", markdown_row(header_values), markdown_row(divider)])
     for _, values in data_rows:
         out.append(markdown_row(values))
@@ -303,7 +306,8 @@ def _render_item(element: ET.Element, out: list[str], depth: int, marker: str = 
     if not sentence:
         sentence = _text(_first(element, "Sentence"))
     number = _number(element)
-    prefix = "  " if tag.startswith("Subitem") else ""
+    subitem_match = re.fullmatch(r"Subitem([1-9]|10)", tag)
+    prefix = "  " * int(subitem_match.group(1)) if subitem_match else ""
 
     # e-Gov item titles already contain legal numbering (一, 二, イ, ロ).
     # Prefer those labels over duplicating the numeric Num attribute.
@@ -356,7 +360,8 @@ def _render_sublist(element: ET.Element, out: list[str], depth: int) -> None:
         return
     level = int(match.group(1))
     sentence_tag = f"Sublist{level}Sentence"
-    sentence = _render_inline_container(_first(element, sentence_tag))
+    sentence_element = _first(element, sentence_tag)
+    sentence = _render_inline_container(sentence_element) if sentence_element is not None else ""
     prefix = "  " * (depth + level - 1)
     if sentence:
         out.append(prefix + "- " + sentence)
