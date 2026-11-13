@@ -34,6 +34,7 @@ IDLE_MINUTES = max(5, min(240, int(os.environ.get("LAWWEB_IDLE_MINUTES", "30")))
 LOGIN_WINDOW = 900
 ACCOUNT_LIMIT = 5
 IP_LIMIT = 20
+REGISTRATION_LIMIT = 8
 MAX_PASSWORD = 1024
 USERNAME_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_.-]{2,31}$")
 LAW_UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
@@ -279,12 +280,16 @@ def verify_csrf() -> bool:
     origin = request.headers.get("Origin")
     referer = request.headers.get("Referer")
 
-    # Some browser configurations serialize an opaque document origin as "null".
-    # Never trust that value by itself: accept it only when the browser also marks
-    # the navigation as same-origin and the synchronizer token above matches.
+    # Some LAN browsers / embedded views send Origin: null and omit Fetch Metadata.
+    # This is accepted only after the session-bound synchronizer token has matched,
+    # the request has passed require_local_network(), and the request is not marked
+    # cross-site. If a Referer is present, it must still match this exact origin.
     if origin and origin.strip().lower() == "null":
-        if fetch_site != "same-origin":
-            g.csrf_failure_reason = "opaque_origin_without_same_origin_metadata"
+        if fetch_site not in {"", "same-origin", "same-site"}:
+            g.csrf_failure_reason = "opaque_origin_cross_site"
+            return False
+        if referer and not same_request_origin(referer, allow_path=True):
+            g.csrf_failure_reason = "origin_mismatch"
             return False
     else:
         source = origin if origin else referer
@@ -578,7 +583,7 @@ def register_post():
         remote = str(ipaddress.ip_address(remote))
     except ValueError:
         remote = "invalid"
-    registration_key = [(keyed_digest("registration-ip:" + remote), 3)]
+    registration_key = [(keyed_digest("registration-ip:" + remote), REGISTRATION_LIMIT)]
     now = int(time.time())
 
     if is_limited(registration_key, now):
@@ -787,12 +792,61 @@ def public_laws():
 
 @app.get("/api/public/laws/<uuid>")
 def public_get_law(uuid: str):
+    if not valid_law_uuid(uuid):
+        return jsonify({"ok": False, "error": "法令UUIDの形式が正しくありません。"}), 400
     result, error = lawgit_request("laws/" + uuid)
     if error:
         return jsonify({"ok": False, "error": error["message"]}), error["status"]
-    law = (result or {}).get("law", {})
-    # Anonymous access returns metadata only; XML source requires authentication.
-    return jsonify({"ok": True, "result": {"law": public_law_fields(law)}})
+
+    # Legal text is public. Return its readable Markdown representation, but
+    # deliberately omit raw XML, repository paths, versions and Git internals.
+    enriched = attach_law_markdown(result or {})
+    law = enriched.get("law", {}) if isinstance(enriched, dict) else {}
+    public_result = {"law": public_law_fields(law)}
+    if isinstance(enriched, dict) and isinstance(enriched.get("markdown"), str):
+        public_result["markdown"] = enriched["markdown"]
+    elif isinstance(enriched, dict) and enriched.get("markdown_error"):
+        public_result["markdown_error"] = enriched["markdown_error"]
+    return jsonify({"ok": True, "result": public_result})
+
+
+@app.get("/api/public/search")
+def public_search():
+    query = request.args.get("q", "").strip()
+    if not query:
+        return jsonify({"ok": False, "error": "検索語を入力してください。"}), 400
+    if len(query) > 120:
+        return jsonify({"ok": False, "error": "検索語は120文字以内にしてください。"}), 400
+    try:
+        limit = int(request.args.get("limit", "30"))
+    except ValueError:
+        return jsonify({"ok": False, "error": "検索件数が不正です。"}), 400
+    limit = min(50, max(1, limit))
+
+    result, error = lawgit_request("search", {"q": query, "limit": limit})
+    if error:
+        return jsonify({"ok": False, "error": error["message"]}), error["status"]
+
+    # Do not expose user-authored rules or arbitrary fields from search hits.
+    hits = []
+    for hit in (result or {}).get("hits", []):
+        if not isinstance(hit, dict) or hit.get("kind") != "law":
+            continue
+        uuid = hit.get("uuid", "")
+        if not valid_law_uuid(uuid):
+            continue
+        hits.append({
+            "kind": "law",
+            "uuid": uuid,
+            "name": str(hit.get("name") or "名称未設定")[:300],
+            "matched": str(hit.get("matched") or "")[:80],
+            "snippet": str(hit.get("snippet") or "")[:1200],
+        })
+    return jsonify({"ok": True, "result": {
+        "query": query,
+        "hits": hits,
+        "truncated": bool((result or {}).get("truncated", False)),
+    }})
 
 
 @app.get("/api/overview")
