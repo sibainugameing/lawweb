@@ -70,7 +70,8 @@
         <div class="topbar-actions">
           <form class="global-search" id="search-form" role="search">
             <span class="search-symbol" aria-hidden="true">⌕</span>
-            <input id="global-search" type="search" placeholder="法令・ルールを検索" autocomplete="off" aria-label="法令・ルールを検索">
+            <input id="global-search" type="search" placeholder="法令名・法令番号・条文の言葉を検索" autocomplete="off" list="law-search-suggestions" aria-label="法令名・法令番号・条文の言葉を検索">
+            <datalist id="law-search-suggestions"></datalist>
             <button class="search-submit" type="submit" aria-label="検索">検索</button>
           </form>
           <button class="icon-button" id="refresh-button" type="button" title="再読み込み" aria-label="再読み込み">↻</button>
