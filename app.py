@@ -925,7 +925,7 @@ def forbidden(_error):
             ),
             "origin_mismatch": (
                 "フォームを開いたURLと送信先のホスト名またはポートが一致しません。"
-                "http://127.0.0.1:5000/register を直接開き、同じURLで送信してください。"
+                "PCのLAN内IPアドレスまたは .local 名で登録ページを開き、同じURLで送信してください。"
             ),
         }
         message = csrf_messages.get(
