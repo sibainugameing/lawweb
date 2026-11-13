@@ -406,7 +406,7 @@ def _render_toc_item(element: ET.Element, out: list[str], depth: int) -> None:
     text = _join_nonempty([title, secondary])
     if not text:
         text = _attr(element, "Num") or tag
-    out.append("  " * depth + "- " + text)
+    out.append("  " * depth + "- " + text + _status_notes(element))
     _render_children(element, out, depth + 1, {title_tag, secondary_tag})
 
 
