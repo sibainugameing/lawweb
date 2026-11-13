@@ -201,14 +201,14 @@ function markdownToHtml(markdown) {
       html.push('<blockquote class="md-quote">' + inlineMarkdown(quote[1]) + '</blockquote>');
       continue;
     }
-    const item = line.match(/^(\s*)(?:[-*+]\s+|\d+[.)]\s+)(.*)$/);
+    const item = line.match(/^(\s*)(?:([-*+])\s+|(\d+)[.)]\s+)(.*)$/);
     if (item) {
       flushParagraph();
       const depth = Math.min(4, Math.floor(item[1].length / 2));
-      const ordered = /^\s*\d+[.)]\s+/.test(line);
+      const marker = item[3] ? item[3] + "." : "•";
       html.push('<div class="md-list-item md-list-depth-' + depth + '">' +
-        '<span class="md-list-marker">' + (ordered ? "•" : "•") + '</span>' +
-        '<span>' + inlineMarkdown(item[2]) + '</span></div>');
+        '<span class="md-list-marker">' + esc(marker) + '</span>' +
+        '<span>' + inlineMarkdown(item[4]) + '</span></div>');
       continue;
     }
     paragraph.push(line);
@@ -596,8 +596,8 @@ function renderRule(rule) {
     metadataItem("バージョン", shortHash(rule.version), true) +
     '</div>';
   const body = '<section class="source-panel"><div class="source-panel-header"><strong>ルール本文</strong>' +
-    '<span>Markdown / 読み取り専用</span></div><pre class="body-content">' +
-    esc(rule.body || "本文はありません。") + '</pre></section>';
+    '<span>Markdown / 読み取り専用</span></div><article class="markdown-document">' +
+    markdownToHtml(rule.body || "本文はありません。") + '</article></section>';
   setContent('<div class="view-stack">' + back + header + metadata +
     '<div class="detail-layout"><div class="detail-primary">' + body + '</div>' +
     '<aside class="detail-aside">' + infoSurface("文書情報", [
