@@ -58,6 +58,65 @@ class LawWebSecurityTests(unittest.TestCase):
             self.assertEqual(db.execute("SELECT COUNT(*) FROM auth_sessions").fetchone()[0], 0)
             self.assertEqual(db.execute("SELECT COUNT(*) FROM login_limits").fetchone()[0], 0)
 
+    def test_local_origin_comparison_accepts_loopback_alias_and_checks_port(self):
+        with lawweb.app.test_request_context("/", base_url="http://127.0.0.1:5000"):
+            self.assertTrue(lawweb.same_local_origin("http://localhost:5000"))
+            self.assertFalse(lawweb.same_local_origin("http://localhost:5001"))
+            self.assertFalse(lawweb.same_local_origin("https://localhost:5000"))
+
+    def test_register_csrf_failure_keeps_registration_form_visible(self):
+        token = self.csrf("/register")
+        response = self.client.post(
+            "/register",
+            data={
+                "csrf_token": token, "username": "reader03",
+                "password": "another secure passphrase 2026",
+                "password_confirm": "another secure passphrase 2026",
+            },
+            headers={"Origin": "http://attacker.example"},
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertIn("新規登録", response.get_data(as_text=True))
+        self.assertIn("入力内容は送信されていません", response.get_data(as_text=True))
+
+    def test_account_password_can_be_changed_from_web(self):
+        self.assertEqual(self.login().status_code, 302)
+        token = self.csrf("/account")
+        response = self.client.post(
+            "/account/password",
+            data={
+                "csrf_token": token,
+                "current_password": "correct horse battery staple 2026",
+                "new_password": "a newer secure passphrase 2026",
+                "password_confirm": "a newer secure passphrase 2026",
+            },
+            headers={"Origin": "http://localhost"},
+        )
+        self.assertEqual(response.status_code, 302)
+        with lawweb.connect_db() as db:
+            row = db.execute("SELECT password_hash FROM users WHERE username=?", ("reader01",)).fetchone()
+        self.assertTrue(lawweb.PASSWORDS.verify(row["password_hash"], "a newer secure passphrase 2026"))
+        self.assertEqual(self.client.get("/account").status_code, 200)
+
+    def test_account_delete_requires_password_and_confirmation(self):
+        self.assertEqual(self.login().status_code, 302)
+        token = self.csrf("/account")
+        response = self.client.post(
+            "/account/delete",
+            data={
+                "csrf_token": token,
+                "password": "correct horse battery staple 2026",
+                "confirmation": "DELETE",
+            },
+            headers={"Origin": "http://localhost"},
+        )
+        self.assertEqual(response.status_code, 302)
+        with lawweb.connect_db() as db:
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM users").fetchone()[0], 0)
+        landing = self.client.get(response.headers["Location"])
+        self.assertEqual(landing.status_code, 200)
+        self.assertIn("アカウントを削除しました", landing.get_data(as_text=True))
+
     def test_public_home_is_available_without_login(self):
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
