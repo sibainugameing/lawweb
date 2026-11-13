@@ -642,7 +642,7 @@ def account_delete():
     try:
         if row is None or not PASSWORDS.verify(str(row["password_hash"]), password):
             raise ValueError("パスワードが正しくありません。")
-    except (VerifyMismatchError, VerificationError, InvalidHashError):
+    except (ValueError, VerifyMismatchError, VerificationError, InvalidHashError):
         return render_account(error="パスワードが正しくありません。", status=400)
     if confirmation != "DELETE":
         return render_account(error="確認欄に DELETE と入力してください。", status=400)
