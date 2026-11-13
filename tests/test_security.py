@@ -170,6 +170,34 @@ class LawWebSecurityTests(unittest.TestCase):
                 lawweb.record_failure(keys[1:], now)
             self.assertTrue(lawweb.is_limited(keys, now))
 
+    def test_registration_attempts_are_rate_limited(self):
+        for index in range(3):
+            token = self.csrf("/register")
+            response = self.client.post(
+                "/register",
+                data={
+                    "csrf_token": token,
+                    "username": f"baduser{index}",
+                    "password": "another secure passphrase 2026",
+                    "password_confirm": "not the same password",
+                },
+                headers={"Origin": "http://localhost"},
+            )
+            self.assertEqual(response.status_code, 400)
+
+        token = self.csrf("/register")
+        blocked = self.client.post(
+            "/register",
+            data={
+                "csrf_token": token,
+                "username": "reader44",
+                "password": "another secure passphrase 2026",
+                "password_confirm": "another secure passphrase 2026",
+            },
+            headers={"Origin": "http://localhost"},
+        )
+        self.assertEqual(blocked.status_code, 429)
+
     def test_non_loopback_client_is_rejected(self):
         response = self.client.get(
             "/login", environ_base={"REMOTE_ADDR": "192.0.2.10"}
