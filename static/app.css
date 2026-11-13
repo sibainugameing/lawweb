@@ -295,3 +295,15 @@ textarea.form-control { min-height: 260px; resize: vertical; line-height: 1.7; f
 @media (max-width: 600px) {
   .public-feature-grid { grid-template-columns: 1fr; }
 }
+
+/* Account self-service */
+.account-card { width: min(510px, 100%); }
+.auth-section-title { margin: 27px 0 12px; padding-bottom: 8px; border-bottom: 1px solid #edf0f2; color: #34495b; font-size: 12px; }
+.account-summary { display: grid; gap: 8px; margin: 18px 0 24px; padding: 13px; border: 1px solid #e8edef; border-radius: 6px; background: #fafcfc; }
+.account-summary div { display: flex; justify-content: space-between; gap: 12px; font-size: 10px; }
+.account-summary span { color: #8b97a3; }
+.account-summary strong { color: #435365; font-weight: 650; text-align: right; overflow-wrap: anywhere; }
+.auth-success { margin: 0 0 15px; padding: 11px 12px; border: 1px solid #d8e8e2; border-radius: 5px; color: #35665d; background: #f5faf8; font-size: 10px; line-height: 1.7; }
+.danger-heading { color: #914b4b; }
+.button-danger { min-height: 38px; padding: 0 14px; border: 1px solid #eedada; border-radius: 5px; color: #924747; background: #fff7f6; font-size: 10px; font-weight: 700; cursor: pointer; }
+.button-danger:hover { background: #fdf0ef; }
