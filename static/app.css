@@ -514,3 +514,18 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .md-table { min-width: 390px; font-size: 10px; }
   .md-table th, .md-table td { padding: 8px 9px; }
 }
+
+.md-list-depth-5 { padding-left: 102px; }
+.md-list-depth-6 { padding-left: 120px; }
+.md-list-depth-7 { padding-left: 138px; }
+.md-list-depth-8 { padding-left: 156px; }
+.md-list-depth-9 { padding-left: 174px; }
+.md-list-depth-10 { padding-left: 192px; }
+@media (max-width: 620px) {
+  .md-list-depth-5 { padding-left: 65px; }
+  .md-list-depth-6 { padding-left: 75px; }
+  .md-list-depth-7 { padding-left: 85px; }
+  .md-list-depth-8 { padding-left: 95px; }
+  .md-list-depth-9 { padding-left: 105px; }
+  .md-list-depth-10 { padding-left: 115px; }
+}
