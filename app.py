@@ -750,6 +750,19 @@ def revoke_sessions_command(username: str):
     click.echo("セッションを失効させました。")
 
 
+@app.cli.command("reset-accounts")
+@click.confirmation_option(prompt="全ユーザー・全セッション・全ログイン制限を削除します。続行しますか？")
+def reset_accounts_command():
+    """Delete all account and authentication records while preserving configuration and legal data."""
+    with closing(connect_db()) as db:
+        db.execute("BEGIN IMMEDIATE")
+        db.execute("DELETE FROM auth_sessions")
+        db.execute("DELETE FROM users")
+        db.execute("DELETE FROM login_limits")
+        db.commit()
+    click.echo("全アカウント・セッション・ログイン制限を削除しました。設定・秘密鍵・法令データは変更していません。")
+
+
 @app.cli.command("reset-login-limits")
 def reset_login_limits_command():
     """Clear account and address login throttles after a local operator verifies the issue."""
