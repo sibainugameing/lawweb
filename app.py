@@ -336,6 +336,9 @@ def security_gate():
     if request.path == "/" or request.path.startswith("/api/public/"):
         if request.method not in {"GET", "HEAD"}:
             abort(405)
+        public_page_user = authenticated_user()
+        if public_page_user is not None:
+            g.user = public_page_user
         return None
 
     user = authenticated_user()
