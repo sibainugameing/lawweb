@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="theme-color" content="#172638">
+  <title>アカウント管理 — LawWeb</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+</head>
+<body class="auth-page">
+  <main class="auth-shell">
+    <section class="auth-card account-card">
+      <a class="brand auth-brand" href="/" aria-label="LawWeb">
+        <span class="brand-mark">L<span>.</span></span>
+        <span class="brand-copy"><strong>LAW<span>WEB</span></strong><small>LAWGIT WORKSPACE</small></span>
+      </a>
+      <p class="eyebrow">ACCOUNT SETTINGS</p>
+      <h1>アカウント管理</h1>
+      {% if error %}<div class="auth-alert" role="alert">{{ error }}</div>{% endif %}
+      {% if success == "password-updated" %}<div class="auth-success" role="status">パスワードを変更しました。ほかのすべてのセッションはログアウトされました。</div>{% endif %}
+      {% if success == "sessions-revoked" %}<div class="auth-success" role="status">現在のセッション以外をすべてログアウトしました。</div>{% endif %}
+      <div class="account-summary">
+        <div><span>ユーザー名</span><strong>{{ username }}</strong></div>
+        <div><span>登録日時（UTC）</span><strong>{{ created_at | int }}</strong></div>
+        <div><span>権限</span><strong>閲覧専用</strong></div>
+      </div>
+
+      <h2 class="auth-section-title">パスワード変更</h2>
+      <form method="post" action="{{ url_for('account_change_password') }}" class="auth-form" autocomplete="on">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label for="current_password">現在のパスワード</label>
+        <input id="current_password" name="current_password" type="password" autocomplete="current-password" required maxlength="1024">
+        <label for="new_password">新しいパスワード</label>
+        <input id="new_password" name="new_password" type="password" autocomplete="new-password" required minlength="14" maxlength="1024">
+        <label for="password_confirm">新しいパスワード（確認）</label>
+        <input id="password_confirm" name="password_confirm" type="password" autocomplete="new-password" required minlength="14" maxlength="1024">
+        <button class="button button-primary auth-submit" type="submit">パスワードを変更</button>
+      </form>
+
+      <h2 class="auth-section-title">ログインセッション</h2>
+      <form method="post" action="{{ url_for('account_revoke_other_sessions') }}" class="auth-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <p class="auth-description">現在使用しているブラウザー以外のログイン状態をすべて失効させます。</p>
+        <button class="button button-secondary auth-submit" type="submit">ほかの端末をログアウト</button>
+      </form>
+
+      <h2 class="auth-section-title danger-heading">アカウント削除</h2>
+      <form method="post" action="{{ url_for('account_delete') }}" class="auth-form" onsubmit="return confirm('このアカウントを完全に削除しますか？');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label for="delete_password">現在のパスワード</label>
+        <input id="delete_password" name="password" type="password" autocomplete="current-password" required maxlength="1024">
+        <label for="delete_confirmation">確認のため DELETE と入力</label>
+        <input id="delete_confirmation" name="confirmation" type="text" required pattern="DELETE" autocomplete="off">
+        <button class="button button-danger auth-submit" type="submit">自分のアカウントを削除</button>
+      </form>
+
+      <p class="auth-switch"><a href="/">LawWebに戻る</a></p>
+      <div class="auth-meta"><span>LOCAL ACCESS ONLY</span><span>READ-ONLY ACCOUNT</span></div>
+    </section>
+    <p class="auth-footnote">LawWeb · アカウント設定</p>
+  </main>
+</body>
+</html>
