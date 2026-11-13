@@ -111,6 +111,8 @@ echo "[lawweb] LawWeb: http://127.0.0.1:$WEB_PORT"
 if [ "$WEB_HOST" = "0.0.0.0" ]; then
   echo "[lawweb] 同じLAN内の端末からは http://<このPCのLAN IP>:$WEB_PORT を開いてください。"
   echo "[lawweb] 公開IP・インターネットからのアクセスはアプリ側で拒否されます。"
+else
+  echo "[lawweb] LAN接続は無効です。LAN接続を使う場合は .env の WEB_HOST=0.0.0.0 に変更してください。"
 fi
 echo "[lawweb] 停止するには Ctrl+C を押してください。"
 "$VENV_DIR/bin/waitress-serve" --host="$WEB_HOST" --port="$WEB_PORT" --threads=4 --channel-timeout=30 app:app
