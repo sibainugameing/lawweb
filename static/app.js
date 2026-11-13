@@ -706,7 +706,7 @@ function renderRevision(kind, revision, data) {
     if (mode === "xml") {
       content = '<pre class="source-content">' + esc(data.xml || "XMLデータがありません。") + '</pre>';
     } else if (data.markdown) {
-      content = '<article class="markdown-document">' + markdownToHtml(data.markdown) + '</article>';
+      content = '<article class="markdown-document">' + markdownToHtml(data.markdown, true) + '</article>';
     } else {
       content = '<div class="reader-error">' + esc(data.markdown_error || "Markdownに変換できませんでした。") + '</div>' +
         '<pre class="source-content">' + esc(data.xml || "XMLデータがありません。") + '</pre>';
