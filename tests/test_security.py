@@ -294,8 +294,37 @@ class LawWebSecurityTests(unittest.TestCase):
             "/login", environ_base={"REMOTE_ADDR": "192.0.2.10"}
         )
         self.assertEqual(response.status_code, 403)
-        self.assertIn("同じPCからのローカル接続専用", response.get_data(as_text=True))
+        self.assertIn("同じPCまたは同じプライベートネットワーク", response.get_data(as_text=True))
         self.assertNotIn("入力内容は送信されていません", response.get_data(as_text=True))
+
+    def test_private_lan_client_can_open_login(self):
+        response = self.client.get(
+            "/login", base_url="http://192.168.1.20:5000",
+            environ_base={"REMOTE_ADDR": "192.168.1.30"},
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_private_lan_local_hostname_is_accepted(self):
+        response = self.client.get(
+            "/login", base_url="http://lawweb.local:5000",
+            environ_base={"REMOTE_ADDR": "192.168.1.30"},
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_public_client_is_rejected_even_with_private_host_header(self):
+        response = self.client.get(
+            "/login", base_url="http://192.168.1.20:5000",
+            environ_base={"REMOTE_ADDR": "8.8.8.8"},
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertIn("同じPCまたは同じプライベートネットワーク", response.get_data(as_text=True))
+
+    def test_public_host_header_is_rejected_from_lan_client(self):
+        response = self.client.get(
+            "/login", base_url="http://example.com:5000",
+            environ_base={"REMOTE_ADDR": "192.168.1.30"},
+        )
+        self.assertEqual(response.status_code, 403)
 
     def test_local_referer_with_form_path_is_accepted(self):
         with lawweb.app.test_request_context(
