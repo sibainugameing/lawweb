@@ -232,18 +232,54 @@ def csrf_token() -> str:
     return value
 
 
+def same_local_origin(value: str) -> bool:
+    """Validate Origin/Referer while tolerating equivalent loopback host spellings."""
+    try:
+        parsed = urlsplit(value)
+        target = urlsplit("//" + request.host)
+        if parsed.scheme.lower() != request.scheme.lower() or not parsed.hostname or not target.hostname:
+            return False
+        if parsed.username is not None or parsed.password is not None:
+            return False
+        if parsed.path not in {"", "/"} or parsed.query or parsed.fragment:
+            return False
+
+        origin_host = parsed.hostname.lower().rstrip(".")
+        target_host = target.hostname.lower().rstrip(".")
+        loopback_names = {"localhost", "127.0.0.1", "::1"}
+        hosts_match = origin_host == target_host or (
+            origin_host in loopback_names and target_host in loopback_names
+        )
+        default_port = 443 if request.scheme.lower() == "https" else 80
+        origin_port = parsed.port or default_port
+        target_port = target.port or default_port
+        return hosts_match and origin_port == target_port
+    except ValueError:
+        return False
+
+
 def verify_csrf() -> bool:
     given = request.form.get("csrf_token") or request.headers.get("X-CSRF-Token", "")
     expected = session.get("_csrf", "")
     if not isinstance(given, str) or not isinstance(expected, str) or not expected:
+        g.csrf_failure_reason = "missing_token"
         return False
     if not secrets.compare_digest(given, expected):
+        g.csrf_failure_reason = "token_mismatch"
         return False
+
+    fetch_site = request.headers.get("Sec-Fetch-Site", "").lower()
+    if fetch_site == "cross-site":
+        g.csrf_failure_reason = "cross_site"
+        return False
+
     origin = request.headers.get("Origin")
-    if origin:
-        parsed = urlsplit(origin)
-        if parsed.scheme != request.scheme or parsed.netloc.lower() != request.host.lower():
-            return False
+    referer = request.headers.get("Referer")
+    source = origin if origin else referer
+    if source and not same_local_origin(source):
+        g.csrf_failure_reason = "origin_mismatch"
+        return False
+
     return True
 
 
@@ -316,9 +352,39 @@ def security_gate():
         if request.method not in {"GET", "HEAD", "POST"}:
             abort(405)
         if request.method == "POST" and not verify_csrf():
+            app.logger.warning(
+                "CSRF rejected path=%s reason=%s host=%s origin=%s",
+                request.path, getattr(g, "csrf_failure_reason", "unknown"),
+                request.host, request.headers.get("Origin", ""),
+            )
             abort(403)
         if request.method in {"GET", "HEAD"} and authenticated_user():
             return redirect(url_for("index"))
+        return None
+
+    if request.path == "/account":
+        if request.method not in {"GET", "HEAD"}:
+            abort(405)
+        user = authenticated_user()
+        if user is None:
+            return redirect(url_for("login"))
+        g.user = user
+        return None
+
+    if request.path in {"/account/password", "/account/sessions/revoke", "/account/delete"}:
+        if request.method != "POST":
+            abort(405)
+        user = authenticated_user()
+        if user is None:
+            return redirect(url_for("login"))
+        g.user = user
+        if not verify_csrf():
+            app.logger.warning(
+                "CSRF rejected path=%s reason=%s host=%s origin=%s",
+                request.path, getattr(g, "csrf_failure_reason", "unknown"),
+                request.host, request.headers.get("Origin", ""),
+            )
+            abort(403)
         return None
 
     if request.path == "/logout":
@@ -499,6 +565,105 @@ def register_post():
 
     begin_user_session(int(user["id"]))
     return redirect(url_for("index"))
+
+
+@app.get("/account")
+def account_page():
+    with closing(connect_db()) as db:
+        row = db.execute(
+            "SELECT username,created_at FROM users WHERE id=?", (g.user["id"],)
+        ).fetchone()
+    if row is None:
+        return redirect(url_for("login"))
+    return render_template(
+        "account.html", username=str(row["username"]),
+        created_at=int(row["created_at"]), error=None,
+        success=request.args.get("status"),
+    )
+
+
+@app.post("/account/password")
+def account_change_password():
+    current_password = request.form.get("current_password", "")
+    new_password = request.form.get("new_password", "")
+    confirm = request.form.get("password_confirm", "")
+    with closing(connect_db()) as db:
+        row = db.execute(
+            "SELECT password_hash FROM users WHERE id=?", (g.user["id"],)
+        ).fetchone()
+    try:
+        if row is None or not PASSWORDS.verify(str(row["password_hash"]), current_password):
+            raise ValueError("現在のパスワードが正しくありません。")
+        validate_password(new_password)
+        if new_password != confirm:
+            raise ValueError("新しいパスワードが一致しません。")
+    except (ValueError, VerifyMismatchError, VerificationError, InvalidHashError) as exc:
+        message = str(exc) if isinstance(exc, ValueError) else "現在のパスワードが正しくありません。"
+        with closing(connect_db()) as db:
+            row = db.execute(
+                "SELECT username,created_at FROM users WHERE id=?", (g.user["id"],)
+            ).fetchone()
+        return render_template(
+            "account.html", username=str(row["username"]) if row else "",
+            created_at=int(row["created_at"]) if row else 0,
+            error=message, success=None,
+        ), 400
+
+    with closing(connect_db()) as db:
+        db.execute("BEGIN IMMEDIATE")
+        db.execute(
+            "UPDATE users SET password_hash=? WHERE id=?",
+            (PASSWORDS.hash(new_password), g.user["id"]),
+        )
+        db.execute("DELETE FROM auth_sessions WHERE user_id=?", (g.user["id"],))
+        db.commit()
+    begin_user_session(int(g.user["id"]))
+    return redirect(url_for("account_page", status="password-updated"))
+
+
+@app.post("/account/sessions/revoke")
+def account_revoke_other_sessions():
+    raw_sid = session.get("_sid")
+    if not isinstance(raw_sid, str):
+        return redirect(url_for("login"))
+    with closing(connect_db()) as db:
+        db.execute(
+            "DELETE FROM auth_sessions WHERE user_id=? AND sid_hash<>?",
+            (g.user["id"], digest(raw_sid)),
+        )
+        db.commit()
+    return redirect(url_for("account_page", status="sessions-revoked"))
+
+
+@app.post("/account/delete")
+def account_delete():
+    password = request.form.get("password", "")
+    confirmation = request.form.get("confirmation", "")
+    with closing(connect_db()) as db:
+        row = db.execute(
+            "SELECT password_hash FROM users WHERE id=?", (g.user["id"],)
+        ).fetchone()
+    try:
+        if row is None or not PASSWORDS.verify(str(row["password_hash"]), password):
+            raise ValueError("パスワードが正しくありません。")
+    except (VerifyMismatchError, VerificationError, InvalidHashError):
+        return render_template(
+            "account.html", username=g.user["username"], created_at=0,
+            error="パスワードが正しくありません。", success=None,
+        ), 400
+    if confirmation != "DELETE":
+        return render_template(
+            "account.html", username=g.user["username"], created_at=0,
+            error="確認欄に DELETE と入力してください。", success=None,
+        ), 400
+
+    with closing(connect_db()) as db:
+        db.execute("BEGIN IMMEDIATE")
+        db.execute("DELETE FROM users WHERE id=?", (g.user["id"],))
+        db.execute("DELETE FROM login_limits")
+        db.commit()
+    session.clear()
+    return redirect(url_for("register", deleted="1"))
 
 
 @app.post("/logout")
@@ -700,7 +865,12 @@ def validate():
 def forbidden(_error):
     if request.path.startswith("/api/"):
         return jsonify({"ok": False, "error": "この操作は許可されていません。"}), 403
-    return render_template("login.html", error="リクエストを検証できませんでした。ページを再読み込みしてください。", setup_message=""), 403
+    message = "セキュリティ検証に失敗しました。入力内容は送信されていません。フォームページを開き直して再試行してください。"
+    if request.path == "/register":
+        return render_template("register.html", error=message, username=request.form.get("username", "")[:32]), 403
+    if request.path.startswith("/account"):
+        return render_template("account.html", error=message, success=None), 403
+    return render_template("login.html", error=message, setup_message=""), 403
 
 
 @app.errorhandler(404)
