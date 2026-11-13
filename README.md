@@ -55,6 +55,14 @@ Web UIおよびFlask APIに書き込み機能はありません。アカウン�
 
     .venv/bin/flask --app app reset-login-limits
 
+全アカウント・全セッション・ログイン試行制限を初期化する場合：
+
+    .venv/bin/flask --app app reset-accounts
+
+実行時に確認が表示されます。この操作は全ユーザーのアカウント情報、パスワードハッシュ、サーバー側セッション、ログイン・登録試行制限を削除します。削除後は既存アカウントでログインできません。再利用するにはWebの「新規登録」からアカウントを作成してください。
+
+このコマンドはSQLite内の認証レコードだけを削除します。instance/secret.key、.env、LawGitの法令・ルールデータ、アプリ設定は変更しません。SQLiteの物理ファイル上の過去データ領域まで完全消去するセキュア消去を保証するものではありません。
+
 全セッションを強制ログアウト：
 
     .venv/bin/flask --app app revoke-sessions
