@@ -128,9 +128,12 @@ def _render_children(
 ) -> None:
     excluded = excluded or set()
     for child in list(element):
-        if _tag(child) in excluded:
-            continue
-        _render_node(child, out, depth)
+        if _tag(child) not in excluded:
+            _render_node(child, out, depth)
+        # XML mixed-content text can live in a child's tail; retain it too.
+        tail = (child.tail or "").strip()
+        if tail:
+            out.append("  " * depth + tail)
 
 
 def _render_heading(
