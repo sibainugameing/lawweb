@@ -104,9 +104,13 @@ def _join_nonempty(parts: Iterable[str], separator: str = "　") -> str:
     return separator.join(part for part in parts if part)
 
 
-def _render_inline_container(element: ET.Element) -> str:
-    """Collect text in document order, retaining spaces between mixed-content nodes."""
+def _render_inline_container(
+    element: ET.Element,
+    excluded_tags: set[str] | None = None,
+) -> str:
+    """Collect text in document order, optionally skipping structural child elements."""
     parts: list[str] = []
+    excluded_tags = excluded_tags or set()
 
     def visit(node: ET.Element) -> None:
         if _tag(node) in {"Sup", "Sub"}:
@@ -131,6 +135,10 @@ def _render_inline_container(element: ET.Element) -> str:
         if node.text:
             parts.append(node.text)
         for child in list(node):
+            if _tag(child) in excluded_tags:
+                if child.tail:
+                    parts.append(child.tail)
+                continue
             visit(child)
             if child.tail:
                 parts.append(child.tail)
@@ -158,9 +166,10 @@ def _render_table_cell(element: ET.Element, header: bool = False) -> str:
 
 
 def _render_table(element: ET.Element, out: list[str], depth: int = 0) -> None:
-    title = _inline_text(_first(element, "TableStructTitle"))
-    remarks = _first(element, "Remarks")
-    table = _first(element, "Table")
+    is_table_node = _tag(element) == "Table"
+    title = _inline_text(_first(element, "TableStructTitle")) if not is_table_node else ""
+    remarks = _first(element, "Remarks") if not is_table_node else None
+    table = element if is_table_node else _first(element, "Table")
     if title:
         out.extend(["", f"**{title}**", ""])
     if table is None:
@@ -221,7 +230,8 @@ def _render_table(element: ET.Element, out: list[str], depth: int = 0) -> None:
             out.extend(["", "> 備考：" + remarks_text])
 
     # Keep any non-table siblings from the TableStruct container.
-    _render_children(element, out, depth, {"TableStructTitle", "Table", "Remarks"})
+    if not is_table_node:
+        _render_children(element, out, depth, {"TableStructTitle", "Table", "Remarks"})
 
 
 def _render_children(
@@ -314,7 +324,7 @@ def _render_item(element: ET.Element, out: list[str], depth: int, marker: str = 
         sentence_tags.insert(0, tag + "Sentence")
     title = _inline_text(_first(element, *title_tags))
     sentence_node = _first(element, *sentence_tags)
-    sentence = _render_inline_container(sentence_node) if sentence_node is not None else ""
+    sentence = _render_inline_container(sentence_node, {"Table"}) if sentence_node is not None else ""
     if not sentence:
         sentence = _text(_first(element, "Sentence"))
     number = _number(element)
@@ -339,6 +349,10 @@ def _render_item(element: ET.Element, out: list[str], depth: int, marker: str = 
 
     excluded = set(title_tags) | set(sentence_tags) | {"Sentence"}
     _render_children(element, out, depth + 1, excluded)
+    if sentence_node is not None:
+        for table_node in list(sentence_node):
+            if _tag(table_node) == "Table":
+                _render_table(table_node, out, depth + 1)
 
 
 TOC_TITLE_TAGS = {
@@ -387,7 +401,7 @@ def _render_node(element: ET.Element, out: list[str], depth: int = 0) -> None:
         return
 
     if tag == "TOC":
-        label = _text(_first(element, "TOCLabel")) or "目次"
+        label = _inline_text(_first(element, "TOCLabel")) or "目次"
         out.extend(["", "## " + label, ""])
         _render_children(element, out, depth + 1, {"TOCLabel"})
         return
@@ -440,7 +454,7 @@ def _render_node(element: ET.Element, out: list[str], depth: int = 0) -> None:
         _render_item(element, out, depth, marker="-")
         return
 
-    if tag == "TableStruct":
+    if tag in {"TableStruct", "Table"}:
         _render_table(element, out, depth)
         return
 
