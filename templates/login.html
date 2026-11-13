@@ -11,13 +11,9 @@
 <body class="auth-page">
   <main class="auth-shell">
     <section class="auth-card">
-      <a class="brand auth-brand" href="/" aria-label="LawWeb">
-        <span class="brand-mark">L<span>.</span></span>
-        <span class="brand-copy"><strong>LAW<span>WEB</span></strong><small>LAWGIT WORKSPACE</small></span>
-      </a>
-      <p class="eyebrow">PRIVATE LEGAL DOCUMENT LIBRARY</p>
+      <a class="brand-name auth-brand-name" href="/" aria-label="LawWeb">LawWeb</a>
       <h1>ログイン</h1>
-      <p class="auth-description">ログインすると、法令XML・ルール本文・変更履歴などの詳細を閲覧できます。</p>
+      <p class="auth-description">法令XML、ルール本文、変更履歴を閲覧できます。</p>
       {% if error %}<div class="auth-alert" role="alert">{{ error }}</div>{% endif %}
       <form method="post" action="{{ url_for('login_post') }}" class="auth-form" autocomplete="on">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -28,9 +24,8 @@
         <button class="button button-primary auth-submit" type="submit">ログイン <span aria-hidden="true">→</span></button>
       </form>
       <p class="auth-switch">アカウントを持っていませんか？ <a href="{{ url_for('register') }}">新規登録</a></p>
-      <div class="auth-meta"><span>LOCAL ACCESS ONLY</span><span>READ-ONLY ACCOUNT</span></div>
     </section>
-    <p class="auth-footnote"><a href="/">公開範囲の閲覧に戻る</a> · LawWeb</p>
+    <p class="auth-footnote"><a href="/">戻る</a></p>
   </main>
 </body>
 </html>
