@@ -356,9 +356,11 @@ def security_gate():
             abort(405)
         if request.method == "POST" and not verify_csrf():
             app.logger.warning(
-                "CSRF rejected path=%s reason=%s host=%s origin=%s",
+                "CSRF rejected path=%s reason=%s host=%s origin=%s referer=%s fetch_site=%s",
                 request.path, getattr(g, "csrf_failure_reason", "unknown"),
                 request.host, request.headers.get("Origin", ""),
+                request.headers.get("Referer", ""),
+                request.headers.get("Sec-Fetch-Site", ""),
             )
             abort(403)
         if request.method in {"GET", "HEAD"} and authenticated_user():
@@ -383,9 +385,11 @@ def security_gate():
         g.user = user
         if not verify_csrf():
             app.logger.warning(
-                "CSRF rejected path=%s reason=%s host=%s origin=%s",
+                "CSRF rejected path=%s reason=%s host=%s origin=%s referer=%s fetch_site=%s",
                 request.path, getattr(g, "csrf_failure_reason", "unknown"),
                 request.host, request.headers.get("Origin", ""),
+                request.headers.get("Referer", ""),
+                request.headers.get("Sec-Fetch-Site", ""),
             )
             abort(403)
         return None
@@ -865,9 +869,28 @@ def forbidden(_error):
             "別のPCからのLAN接続はこの構成では許可されていません。"
         )
     else:
-        message = (
-            "セキュリティ検証に失敗しました。入力内容は送信されていません。"
-            "同じブラウザーでフォームページを開き直して再試行してください。"
+        csrf_reason = getattr(g, "csrf_failure_reason", "")
+        csrf_messages = {
+            "missing_token": (
+                "CSRFトークンがフォームまたはセッションCookieから取得できませんでした。"
+                "このURLを開き直し、同じホスト名のまま送信してください。"
+            ),
+            "token_mismatch": (
+                "フォームを開いた後にセッションが変わったため、確認に失敗しました。"
+                "登録ページを再読み込みして、もう一度入力してください。"
+            ),
+            "cross_site": (
+                "ブラウザーが別サイトからの送信と判定したため拒否しました。"
+                "LawWebの登録ページを直接開いてください。"
+            ),
+            "origin_mismatch": (
+                "フォームを開いたURLと送信先のホスト名またはポートが一致しません。"
+                "http://127.0.0.1:5000/register を直接開き、同じURLで送信してください。"
+            ),
+        }
+        message = csrf_messages.get(
+            csrf_reason,
+            "セキュリティ検証に失敗しました。LawWebの登録ページを再読み込みしてください。",
         )
     if request.path == "/register":
         return render_template("register.html", error=message, username=request.form.get("username", "")[:32]), 403
