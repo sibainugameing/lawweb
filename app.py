@@ -312,7 +312,7 @@ def security_gate():
     if request.path.startswith("/static/"):
         return None
 
-    if request.path == "/login":
+    if request.path in {"/login", "/register"}:
         if request.method not in {"GET", "HEAD", "POST"}:
             abort(405)
         if request.method == "POST" and not verify_csrf():
@@ -330,6 +330,12 @@ def security_gate():
         g.user = user
         if not verify_csrf():
             abort(403)
+        return None
+
+    # Anonymous users may access only the public landing page and public law metadata.
+    if request.path == "/" or request.path.startswith("/api/public/"):
+        if request.method not in {"GET", "HEAD"}:
+            abort(405)
         return None
 
     user = authenticated_user()
@@ -366,30 +372,50 @@ def template_context():
     return {"csrf_token": csrf_token(), "current_user": getattr(g, "user", None)}
 
 
+def begin_user_session(user_id: int) -> None:
+    raw_sid = secrets.token_urlsafe(48)
+    now = int(time.time())
+    with closing(connect_db()) as db:
+        db.execute(
+            "INSERT INTO auth_sessions(sid_hash,user_id,created_at,last_seen_at,expires_at) VALUES(?,?,?,?,?)",
+            (digest(raw_sid), user_id, now, now, now + SESSION_HOURS * 3600),
+        )
+        db.commit()
+
+    # Clear any pre-authentication session, then issue a fresh authenticated session.
+    session.clear()
+    session.permanent = True
+    session["_sid"] = raw_sid
+    session["_csrf"] = secrets.token_urlsafe(32)
+
+
+def render_login(error: str | None = None, status: int = 200):
+    return render_template("login.html", error=error, setup_message=""), status
+
+
 @app.get("/login")
 def login():
-    message = ("まだアカウントがありません。ターミナルで flask --app app create-user を実行してください。"
-               if user_count() == 0 else "")
-    return render_template("login.html", error=None, setup_message=message)
+    return render_login()
 
 
 @app.post("/login")
 def login_post():
-    if authenticated_user():
+    existing_user = authenticated_user()
+    if existing_user:
         return redirect(url_for("index"))
+
     raw_name = request.form.get("username", "")
     password = request.form.get("password", "")
     try:
         username = normalize_username(raw_name)
     except ValueError:
+        # Keep the work factor similar for malformed and unknown account names.
         username = "invalid-" + secrets.token_hex(12)
 
     now = int(time.time())
     keys = login_keys(username)
     if is_limited(keys, now):
-        return render_template("login.html",
-            error="ログイン試行回数が上限に達しました。15分後に再試行してください。",
-            setup_message=""), 429
+        return render_login("ログイン試行回数が上限に達しました。15分後に再試行してください。", 429)
 
     with closing(connect_db()) as db:
         user = db.execute(
@@ -397,39 +423,75 @@ def login_post():
         ).fetchone()
 
     too_long = len(password) > MAX_PASSWORD
-    stored_hash = str(user["password_hash"]) if user and not too_long else DUMMY_HASH
-    verify_value = password[:MAX_PASSWORD]
-    valid = False
+    verify_hash = str(user["password_hash"]) if user and not too_long else DUMMY_HASH
+    password_ok = False
     try:
-        valid = PASSWORDS.verify(stored_hash, verify_value)
+        password_ok = PASSWORDS.verify(verify_hash, password[:MAX_PASSWORD])
     except (VerifyMismatchError, VerificationError, InvalidHashError):
-        valid = False
+        password_ok = False
 
-    if user is None or int(user["disabled"]) != 0 or not valid or too_long:
+    if user is None or int(user["disabled"]) != 0 or not password_ok or too_long:
         record_failure(keys, now)
-        return render_template("login.html",
-            error="ユーザー名またはパスワードが正しくありません。",
-            setup_message=""), 401
+        return render_login("ユーザー名またはパスワードが正しくありません。", 401)
 
     clear_failures(keys)
-    if PASSWORDS.check_needs_rehash(stored_hash):
+    if PASSWORDS.check_needs_rehash(verify_hash):
         with closing(connect_db()) as db:
             db.execute("UPDATE users SET password_hash=? WHERE id=?", (PASSWORDS.hash(password), user["id"]))
             db.commit()
 
-    raw_sid = secrets.token_urlsafe(48)
-    now = int(time.time())
-    with closing(connect_db()) as db:
-        db.execute(
-            "INSERT INTO auth_sessions VALUES(?,?,?,?,?)",
-            (digest(raw_sid), user["id"], now, now, now + SESSION_HOURS * 3600),
-        )
-        db.commit()
+    begin_user_session(int(user["id"]))
+    return redirect(url_for("index"))
 
-    session.clear()
-    session.permanent = True
-    session["_sid"] = raw_sid
-    session["_csrf"] = secrets.token_urlsafe(32)
+
+@app.get("/register")
+def register():
+    return render_template("register.html", error=None, username="")
+
+
+@app.post("/register")
+def register_post():
+    remote = request.remote_addr or "unknown"
+    try:
+        remote = str(ipaddress.ip_address(remote))
+    except ValueError:
+        remote = "invalid"
+    registration_key = [(keyed_digest("registration-ip:" + remote), 3)]
+    now = int(time.time())
+
+    if is_limited(registration_key, now):
+        return render_template(
+            "register.html",
+            error="登録試行回数が上限に達しました。15分後に再試行してください。",
+            username="",
+        ), 429
+
+    # Count every registration attempt, including invalid submissions.
+    record_failure(registration_key, now)
+
+    username_input = request.form.get("username", "")
+    password = request.form.get("password", "")
+    password_confirm = request.form.get("password_confirm", "")
+
+    try:
+        username = normalize_username(username_input)
+        validate_password(password)
+        if password != password_confirm:
+            raise ValueError("確認用パスワードが一致しません。")
+        create_user_record(username, password)
+    except ValueError as exc:
+        return render_template(
+            "register.html",
+            error=str(exc),
+            username=username_input[:32],
+        ), 400
+
+    with closing(connect_db()) as db:
+        user = db.execute("SELECT id FROM users WHERE username=?", (username,)).fetchone()
+    if user is None:
+        return render_login("アカウントを作成できませんでした。", 500)
+
+    begin_user_session(int(user["id"]))
     return redirect(url_for("index"))
 
 
@@ -474,6 +536,54 @@ def api_response(path: str, params=None):
     if error:
         return jsonify({"ok": False, "error": error["message"]}), error["status"]
     return jsonify({"ok": True, "result": result})
+
+
+@app.get("/api/public/overview")
+def public_overview():
+    ping, error = lawgit_request("ping")
+    if error:
+        return jsonify({"ok": True, "result": {"connected": False, "error": error["message"]}})
+    laws, laws_error = lawgit_request("laws")
+    categories, categories_error = lawgit_request("categories")
+    if laws_error:
+        return jsonify({"ok": False, "error": laws_error["message"]}), laws_error["status"]
+    law_items = (laws or {}).get("laws", [])
+    public_laws = {"laws": [public_law_fields(item) for item in law_items]}
+    return jsonify({"ok": True, "result": {
+        "connected": True,
+        "ping": {"name": ping.get("name"), "version": ping.get("version")},
+        "laws": public_laws,
+        "categories": categories or {"laws": [], "rules": []},
+        "errors": {"categories": categories_error["message"]} if categories_error else {},
+    }})
+
+
+def public_law_fields(law: dict[str, Any]) -> dict[str, Any]:
+    allowed = ("uuid", "name", "type", "law_number", "e_gov_id", "category")
+    return {key: law.get(key) for key in allowed if key in law}
+
+
+@app.get("/api/public/laws")
+def public_laws():
+    params = {key: request.args.get(key) for key in ("category", "type") if request.args.get(key)}
+    laws, error = lawgit_request("laws", params)
+    if error:
+        return jsonify({"ok": False, "error": error["message"]}), error["status"]
+    result = laws or {}
+    return jsonify({"ok": True, "result": {
+        "laws": [public_law_fields(item) for item in result.get("laws", [])],
+        "errors": result.get("errors", []),
+    }})
+
+
+@app.get("/api/public/laws/<uuid>")
+def public_get_law(uuid: str):
+    result, error = lawgit_request("laws/" + uuid)
+    if error:
+        return jsonify({"ok": False, "error": error["message"]}), error["status"]
+    law = (result or {}).get("law", {})
+    # Anonymous access returns metadata only; XML source requires authentication.
+    return jsonify({"ok": True, "result": {"law": public_law_fields(law)}})
 
 
 @app.get("/api/overview")
