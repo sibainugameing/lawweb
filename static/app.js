@@ -203,7 +203,7 @@ function markdownToHtml(markdown, hideDocumentTitle = false) {
       html.push('<blockquote class="md-quote">' + inlineMarkdown(quote[1]) + '</blockquote>');
       continue;
     }
-    const item = line.match(/^(\s*)(?:([-*+])\s+|(\d+)[.)]\s+)(.*)$/);
+    const item = line.match(/^(\s*)(?:([-*+])\s+|([0-9０-９一二三四五六七八九十百千]+)[.)．]\s+)(.*)$/);
     if (item) {
       flushParagraph();
       const depth = Math.min(4, Math.floor(item[1].length / 2));
