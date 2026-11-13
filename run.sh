@@ -102,11 +102,7 @@ if ! "$VENV_DIR/bin/python" -c 'import flask, requests, argon2, waitress' >/dev/
 fi
 
 export LAWGIT_API_URL LAWGIT_TOKEN LAWGIT_TIMEOUT WEB_HOST WEB_PORT
-USER_COUNT=$("$VENV_DIR/bin/python" -c 'import app; print(app.user_count())')
-if [ "$USER_COUNT" = "0" ]; then
-  echo "[lawweb] 初回アカウントを作成します（Webからの公開登録はありません）。"
-  "$VENV_DIR/bin/flask" --app app create-user
-fi
+echo "[lawweb] アカウント登録はWebの /register から行えます。"
 
 echo "[lawweb] LawWeb: http://127.0.0.1:$WEB_PORT"
 echo "[lawweb] 停止するには Ctrl+C を押してください。"
