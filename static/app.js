@@ -150,6 +150,35 @@ function inlineMarkdown(value) {
   return text;
 }
 
+function splitMarkdownTableRow(line) {
+  const value = line.trim();
+  if (!value.startsWith("|") || !value.endsWith("|")) return null;
+  const cells = [];
+  let cell = "";
+  let escaped = false;
+  for (const char of value.slice(1, -1)) {
+    if (escaped) {
+      cell += char;
+      escaped = false;
+    } else if (char === "\\") {
+      escaped = true;
+    } else if (char === "|") {
+      cells.push(cell.trim());
+      cell = "";
+    } else {
+      cell += char;
+    }
+  }
+  if (escaped) cell += "\\";
+  cells.push(cell.trim());
+  return cells;
+}
+
+function isMarkdownTableSeparator(line) {
+  const cells = splitMarkdownTableRow(line);
+  return !!cells && cells.length > 0 && cells.every(cell => /^:?-{3,}:?$/.test(cell));
+}
+
 function markdownToHtml(markdown, hideDocumentTitle = false) {
   const lines = String(markdown || "").replace(/\r\n?/g, "\n").split("\n");
   const html = [];
@@ -169,7 +198,8 @@ function markdownToHtml(markdown, hideDocumentTitle = false) {
     inCode = false;
   };
 
-  for (const line of lines) {
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+    const line = lines[lineIndex];
     if (line.trimStart().startsWith("```")) {
       flushParagraph();
       if (inCode) flushCode();
@@ -182,6 +212,28 @@ function markdownToHtml(markdown, hideDocumentTitle = false) {
     }
     if (!line.trim()) {
       flushParagraph();
+      continue;
+    }
+    const tableHeader = splitMarkdownTableRow(line);
+    if (tableHeader && lineIndex + 1 < lines.length && isMarkdownTableSeparator(lines[lineIndex + 1])) {
+      flushParagraph();
+      const tableRows = [];
+      lineIndex += 2;
+      while (lineIndex < lines.length) {
+        const cells = splitMarkdownTableRow(lines[lineIndex]);
+        if (!cells) {
+          lineIndex--;
+          break;
+        }
+        tableRows.push(cells);
+        lineIndex++;
+      }
+      const header = '<thead><tr>' + tableHeader.map(cell => '<th>' + inlineMarkdown(cell) + '</th>').join("") + '</tr></thead>';
+      const body = tableRows.length ?
+        '<tbody>' + tableRows.map(row => '<tr>' +
+          tableHeader.map((_, index) => '<td>' + inlineMarkdown(row[index] || "") + '</td>').join("") +
+          '</tr>').join("") + '</tbody>' : "";
+      html.push('<div class="md-table-wrap"><table class="md-table">' + header + body + '</table></div>');
       continue;
     }
     const heading = line.match(/^(#{1,6})\s+(.+)$/);
