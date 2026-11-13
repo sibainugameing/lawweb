@@ -209,16 +209,24 @@ def _render_item(element: ET.Element, out: list[str], depth: int, marker: str = 
     sentence = _render_inline_container(sentence_node) if sentence_node is not None else ""
     if not sentence:
         sentence = _text(_first(element, "Sentence"))
-    content = _join_nonempty([title, sentence], " ")
     number = _number(element)
-    prefix = "  " * max(0, depth - 4)
-    if number:
-        out.append(f"{prefix}{number}. {content}".rstrip())
-    elif content:
-        out.append(f"{prefix}{marker} {content}".rstrip())
+    prefix = "  " if tag.startswith("Subitem") else ""
+
+    # e-Gov item titles already contain legal numbering (一, 二, イ, ロ).
+    # Prefer those labels over duplicating the numeric Num attribute.
+    if title and sentence:
+        out.append(f"{prefix}{marker} {title}　{sentence}")
+    elif title:
+        out.append(f"{prefix}{marker} {title}")
+    elif sentence and number:
+        out.append(f"{prefix}{number}. {sentence}")
+    elif sentence:
+        out.append(f"{prefix}{marker} {sentence}")
+    elif number:
+        out.append(f"{prefix}{number}.")
     else:
         attrs = _attributes(element)
-        out.append(f"{prefix}{marker} [{_tag(element)}]" + (f"（{attrs}）" if attrs else ""))
+        out.append(f"{prefix}{marker} [{tag}]" + (f"（{attrs}）" if attrs else ""))
 
     excluded = set(title_tags) | set(sentence_tags) | {"Sentence"}
     _render_children(element, out, depth + 1, excluded)
