@@ -19,6 +19,7 @@ import requests
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
 from flask import Flask, abort, g, jsonify, redirect, render_template, request, session, url_for
+from law_markdown import LawMarkdownError, law_markdown_diff, law_xml_to_markdown
 
 ROOT = Path(__file__).resolve().parent
 INSTANCE_DIR = ROOT / "instance"
@@ -35,6 +36,8 @@ ACCOUNT_LIMIT = 5
 IP_LIMIT = 20
 MAX_PASSWORD = 1024
 USERNAME_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_.-]{2,31}$")
+LAW_UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
+REVISION_RE = re.compile(r"^[0-9a-fA-F]{4,40}$")
 PASSWORDS = PasswordHasher(time_cost=3, memory_cost=65536, parallelism=2, hash_len=32, salt_len=16)
 DUMMY_HASH = PASSWORDS.hash(secrets.token_urlsafe(32))
 
@@ -830,19 +833,91 @@ def laws():
     return api_response("laws", params)
 
 
+def attach_law_markdown(result: Any) -> Any:
+    if not isinstance(result, dict):
+        return result
+    enriched = dict(result)
+    xml_text = enriched.get("xml")
+    if isinstance(xml_text, str):
+        try:
+            enriched["markdown"] = law_xml_to_markdown(xml_text)
+        except LawMarkdownError as exc:
+            enriched["markdown_error"] = str(exc)
+    return enriched
+
+
+def valid_law_uuid(uuid: str) -> bool:
+    return bool(LAW_UUID_RE.fullmatch(uuid))
+
+
 @app.get("/api/laws/<uuid>")
 def get_law(uuid: str):
-    return api_response("laws/" + uuid)
+    if not valid_law_uuid(uuid):
+        return jsonify({"ok": False, "error": "法令UUIDの形式が正しくありません。"}), 400
+    result, error = lawgit_request("laws/" + uuid)
+    if error:
+        return jsonify({"ok": False, "error": error["message"]}), error["status"]
+    return jsonify({"ok": True, "result": attach_law_markdown(result)})
 
 
 @app.get("/api/laws/<uuid>/history")
 def law_history(uuid: str):
+    if not valid_law_uuid(uuid):
+        return jsonify({"ok": False, "error": "法令UUIDの形式が正しくありません。"}), 400
     return api_response("laws/" + uuid + "/history", {"limit": request.args.get("limit", "100")})
 
 
 @app.get("/api/laws/<uuid>/revisions/<rev>")
 def law_revision(uuid: str, rev: str):
-    return api_response("laws/" + uuid + "/revisions/" + rev)
+    if not valid_law_uuid(uuid):
+        return jsonify({"ok": False, "error": "法令UUIDの形式が正しくありません。"}), 400
+    if not REVISION_RE.fullmatch(rev):
+        return jsonify({"ok": False, "error": "コミットIDの形式が正しくありません。"}), 400
+    result, error = lawgit_request("laws/" + uuid + "/revisions/" + rev)
+    if error:
+        return jsonify({"ok": False, "error": error["message"]}), error["status"]
+    return jsonify({"ok": True, "result": attach_law_markdown(result)})
+
+
+@app.get("/api/laws/<uuid>/diff")
+def law_revision_diff(uuid: str):
+    if not valid_law_uuid(uuid):
+        return jsonify({"ok": False, "error": "法令UUIDの形式が正しくありません。"}), 400
+    older_rev = request.args.get("older", "").strip()
+    newer_rev = request.args.get("newer", "").strip()
+    if not REVISION_RE.fullmatch(older_rev) or not REVISION_RE.fullmatch(newer_rev):
+        return jsonify({"ok": False, "error": "比較するコミットIDが不正です。"}), 400
+    if older_rev == newer_rev:
+        return jsonify({"ok": False, "error": "異なる2つの版を選択してください。"}), 400
+
+    older, older_error = lawgit_request("laws/" + uuid + "/revisions/" + older_rev)
+    if older_error:
+        return jsonify({"ok": False, "error": older_error["message"]}), older_error["status"]
+    newer, newer_error = lawgit_request("laws/" + uuid + "/revisions/" + newer_rev)
+    if newer_error:
+        return jsonify({"ok": False, "error": newer_error["message"]}), newer_error["status"]
+    older_xml = older.get("xml") if isinstance(older, dict) else None
+    newer_xml = newer.get("xml") if isinstance(newer, dict) else None
+    if not isinstance(older_xml, str) or not isinstance(newer_xml, str):
+        return jsonify({"ok": False, "error": "比較対象の版からXMLを取得できませんでした。"}), 502
+    try:
+        diff = law_markdown_diff(
+            older_xml, newer_xml,
+            older_label="旧版 " + older_rev[:8],
+            newer_label="新版 " + newer_rev[:8],
+        )
+    except LawMarkdownError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 422
+
+    additions = sum(1 for line in diff.splitlines() if line.startswith("+") and not line.startswith("+++"))
+    deletions = sum(1 for line in diff.splitlines() if line.startswith("-") and not line.startswith("---"))
+    return jsonify({"ok": True, "result": {
+        "older": older_rev, "newer": newer_rev,
+        "older_subject": older.get("subject", "") if isinstance(older, dict) else "",
+        "newer_subject": newer.get("subject", "") if isinstance(newer, dict) else "",
+        "diff": diff, "additions": additions, "deletions": deletions,
+        "identical": not bool(diff),
+    }})
 
 
 @app.get("/api/rules")
