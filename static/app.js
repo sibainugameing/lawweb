@@ -685,24 +685,46 @@ document.addEventListener("click", async event => {
   }
 });
 
-document.addEventListener("input", event => {
-  if (event.target.id === "law-filter") {
-    const position = event.target.selectionStart;
-    state.lawQuery = event.target.value;
+const composingFilters = new Set();
+
+function updateFilter(id, value, position) {
+  if (id === "law-filter") {
+    state.lawQuery = value;
     state.lawPage = 1;
     renderLawList();
-    const field = document.getElementById("law-filter");
-    field.focus();
-    if (position !== null) field.setSelectionRange(position, position);
-  } else if (event.target.id === "rule-filter") {
-    const position = event.target.selectionStart;
-    state.ruleQuery = event.target.value;
+  } else if (id === "rule-filter") {
+    state.ruleQuery = value;
     state.rulePage = 1;
     renderRuleList();
-    const field = document.getElementById("rule-filter");
-    field.focus();
-    if (position !== null) field.setSelectionRange(position, position);
+  } else {
+    return;
   }
+
+  const field = document.getElementById(id);
+  if (field) {
+    field.focus();
+    if (position !== null && position !== undefined) field.setSelectionRange(position, position);
+  }
+}
+
+document.addEventListener("compositionstart", event => {
+  if (event.target && (event.target.id === "law-filter" || event.target.id === "rule-filter")) {
+    composingFilters.add(event.target.id);
+  }
+});
+
+document.addEventListener("compositionend", event => {
+  const field = event.target;
+  if (!field || !composingFilters.has(field.id)) return;
+  composingFilters.delete(field.id);
+  updateFilter(field.id, field.value, field.selectionStart);
+});
+
+document.addEventListener("input", event => {
+  const field = event.target;
+  if (!field || (field.id !== "law-filter" && field.id !== "rule-filter")) return;
+  if (event.isComposing || composingFilters.has(field.id)) return;
+  updateFilter(field.id, field.value, field.selectionStart);
 });
 
 document.addEventListener("change", event => {
