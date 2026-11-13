@@ -261,7 +261,7 @@ function markdownToHtml(markdown, hideDocumentTitle = false) {
     const item = line.match(/^(\s*)(?:([-*+])\s+|([0-9０-９一二三四五六七八九十百千]+)[.)．]\s+)(.*)$/);
     if (item) {
       flushParagraph();
-      const depth = Math.min(4, Math.floor(item[1].length / 2));
+      const depth = Math.min(10, Math.floor(item[1].length / 2));
       const marker = item[3] ? item[3] + "." : "•";
       html.push('<div class="md-list-item md-list-depth-' + depth + '">' +
         '<span class="md-list-marker">' + esc(marker) + '</span>' +
