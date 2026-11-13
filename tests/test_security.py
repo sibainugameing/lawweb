@@ -60,9 +60,9 @@ class LawWebSecurityTests(unittest.TestCase):
 
     def test_local_origin_comparison_accepts_loopback_alias_and_checks_port(self):
         with lawweb.app.test_request_context("/", base_url="http://127.0.0.1:5000"):
-            self.assertTrue(lawweb.same_local_origin("http://localhost:5000"))
-            self.assertFalse(lawweb.same_local_origin("http://localhost:5001"))
-            self.assertFalse(lawweb.same_local_origin("https://localhost:5000"))
+            self.assertTrue(lawweb.same_request_origin("http://localhost:5000"))
+            self.assertFalse(lawweb.same_request_origin("http://localhost:5001"))
+            self.assertFalse(lawweb.same_request_origin("https://localhost:5000"))
 
     def test_register_csrf_failure_keeps_registration_form_visible(self):
         token = self.csrf("/register")
@@ -366,7 +366,7 @@ class LawWebSecurityTests(unittest.TestCase):
         with lawweb.app.test_request_context(
             "/register", base_url="http://127.0.0.1:5000"
         ):
-            self.assertTrue(lawweb.same_local_origin(
+            self.assertTrue(lawweb.same_request_origin(
                 "http://localhost:5000/register?source=home", allow_path=True
             ))
 
