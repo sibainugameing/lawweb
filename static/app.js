@@ -485,7 +485,7 @@ function renderLaw(data) {
   setPage("laws", "法令詳細");
   const back = '<button class="detail-back" type="button" data-action="back-to-laws">← 法令一覧に戻る</button>';
   const actions = IS_AUTHENTICATED ?
-    '<button class="action-button" type="button" data-action="history" data-kind="law" data-uuid="' + esc(law.uuid) + '">変更履歴を見る</button>' : "";
+    '<button class="action-button" type="button" data-action="history" data-kind="law" data-uuid="' + esc(law.uuid) + '">改正履歴・差分</button>' : "";
   const header = detailHeader("law", law.name || "名称未設定",
     [law.type, law.law_number].filter(Boolean).join(" · "), actions);
   const metadata = '<div class="metadata-grid">' +
@@ -504,8 +504,24 @@ function renderLaw(data) {
   ]);
   let primary;
   if (IS_AUTHENTICATED) {
-    primary = '<section class="source-panel"><div class="source-panel-header"><strong>法令XML</strong><span>読み取り専用</span></div>' +
-      '<pre class="source-content">' + esc(data.xml || "XMLデータがありません。") + '</pre></section>';
+    const mode = state.lawDisplayMode || "markdown";
+    const tabs = '<div class="reader-tabs" role="tablist" aria-label="法令本文の表示形式">' +
+      '<button class="reader-tab ' + (mode === "markdown" ? "active" : "") + '" type="button" role="tab" aria-selected="' +
+      (mode === "markdown" ? "true" : "false") + '" data-action="law-display-mode" data-mode="markdown">整形表示</button>' +
+      '<button class="reader-tab ' + (mode === "xml" ? "active" : "") + '" type="button" role="tab" aria-selected="' +
+      (mode === "xml" ? "true" : "false") + '" data-action="law-display-mode" data-mode="xml">XML原文</button></div>';
+    let content;
+    if (mode === "xml") {
+      content = '<pre class="source-content">' + esc(data.xml || "XMLデータがありません。") + '</pre>';
+    } else if (data.markdown) {
+      content = '<article class="markdown-document">' + markdownToHtml(data.markdown) + '</article>';
+    } else {
+      content = '<div class="reader-error">' + esc(data.markdown_error || "Markdownに変換できませんでした。XML原文を確認してください。") + '</div>' +
+        '<pre class="source-content">' + esc(data.xml || "XMLデータがありません。") + '</pre>';
+    }
+    primary = '<section class="source-panel law-reader"><div class="reader-panel-header">' +
+      '<div><strong>法令本文</strong><span>XML構造をMarkdownとして表示</span></div>' + tabs +
+      '</div>' + content + '</section>';
   } else {
     primary = '<section class="surface"><div class="surface-body">' +
       '<div class="view-heading"><div class="view-heading-main"><h3 class="surface-title">本文と変更履歴はログイン後に閲覧できます</h3>' +
