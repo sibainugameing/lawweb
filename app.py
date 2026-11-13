@@ -232,7 +232,7 @@ def csrf_token() -> str:
     return value
 
 
-def same_local_origin(value: str) -> bool:
+def same_local_origin(value: str, *, allow_path: bool = False) -> bool:
     """Validate Origin/Referer while tolerating equivalent loopback host spellings."""
     try:
         parsed = urlsplit(value)
@@ -241,7 +241,7 @@ def same_local_origin(value: str) -> bool:
             return False
         if parsed.username is not None or parsed.password is not None:
             return False
-        if parsed.path not in {"", "/"} or parsed.query or parsed.fragment:
+        if not allow_path and (parsed.path not in {"", "/"} or parsed.query or parsed.fragment):
             return False
 
         origin_host = parsed.hostname.lower().rstrip(".")
@@ -276,7 +276,7 @@ def verify_csrf() -> bool:
     origin = request.headers.get("Origin")
     referer = request.headers.get("Referer")
     source = origin if origin else referer
-    if source and not same_local_origin(source):
+    if source and not same_local_origin(source, allow_path=not bool(origin)):
         g.csrf_failure_reason = "origin_mismatch"
         return False
 
@@ -650,7 +650,6 @@ def account_delete():
     with closing(connect_db()) as db:
         db.execute("BEGIN IMMEDIATE")
         db.execute("DELETE FROM users WHERE id=?", (g.user["id"],))
-        db.execute("DELETE FROM login_limits")
         db.commit()
     session.clear()
     return redirect(url_for("register", deleted="1"))
